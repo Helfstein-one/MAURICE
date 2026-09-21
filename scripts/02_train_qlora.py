@@ -19,9 +19,7 @@ import os
 from typing import Any
 
 
-def load_variant_config(
-    variant: str, config_dir: str = "configs"
-) -> dict[str, Any]:
+def load_variant_config(variant: str, config_dir: str = "configs") -> dict[str, Any]:
     config_file = os.path.join(config_dir, f"variant_{variant}.json")
     if not os.path.exists(config_file):
         raise FileNotFoundError(
@@ -44,9 +42,7 @@ def run_training(
         config = load_variant_config(variant)
 
     variant_name = config.get("name", f"mau-llm-1.0-{variant}")
-    base_model = config.get(
-        "base_model", "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
-    )
+    base_model = config.get("base_model", "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B")
     dataset_file = config.get("datasets", {}).get(
         "processed_file", f"data/processed/train_{variant}.jsonl"
     )
@@ -165,9 +161,7 @@ def run_training(
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="MAURICE Parameterized QLoRA Trainer"
-    )
+    parser = argparse.ArgumentParser(description="MAURICE Parameterized QLoRA Trainer")
     parser.add_argument(
         "--variant",
         choices=["c", "r", "g"],

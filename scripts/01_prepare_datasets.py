@@ -62,6 +62,17 @@ def validate_code_syntax(code: str, language: str = "python") -> bool:
     return True
 
 
+def validate_think_tags(response: str) -> bool:
+    """Validates explicit presence and structural ordering of <think>...</think> tags in response."""
+    if not response or not isinstance(response, str):
+        return False
+    think_start = response.find("<think>")
+    think_end = response.find("</think>")
+    if think_start == -1 or think_end == -1:
+        return False
+    return think_start < think_end
+
+
 def format_chatml_example(
     system_prompt: str, user_prompt: str, assistant_response: str
 ) -> dict[str, Any]:
@@ -75,9 +86,7 @@ def format_chatml_example(
     }
 
 
-def generate_synthetic_samples(
-    variant: str, count: int = 10
-) -> list[dict[str, Any]]:
+def generate_synthetic_samples(variant: str, count: int = 10) -> list[dict[str, Any]]:
     """Generates valid synthetic samples for testing and dry runs."""
     samples = []
     sys_prompt = SYSTEM_PROMPTS[variant]
@@ -184,9 +193,7 @@ def process_variant(
                             else ""
                         )
                         records.append(
-                            format_chatml_example(
-                                sys_prompt, user_val, assistant_val
-                            )
+                            format_chatml_example(sys_prompt, user_val, assistant_val)
                         )
             elif variant == "g":
                 ds = load_dataset(
@@ -216,19 +223,22 @@ def process_variant(
             and msgs[1]["role"] == "user"
             and msgs[2]["role"] == "assistant"
         ):
+            assistant_content = msgs[2].get("content", "")
+            if variant == "r" and not validate_think_tags(assistant_content):
+                continue
             valid_records.append(record)
 
     with open(output_path, "w", encoding="utf-8") as f:
-        f.writelines(json.dumps(rec, ensure_ascii=False) + "\n" for rec in valid_records)
+        f.writelines(
+            json.dumps(rec, ensure_ascii=False) + "\n" for rec in valid_records
+        )
 
     print(f"Successfully wrote {len(valid_records)} records to {output_path}")
     return len(valid_records)
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="MAURICE Dataset Preparation Pipeline"
-    )
+    parser = argparse.ArgumentParser(description="MAURICE Dataset Preparation Pipeline")
     parser.add_argument(
         "--variant",
         choices=["c", "r", "g", "all"],
@@ -262,7 +272,9 @@ def main():
         )
         total_prepared += count
 
-    print(f"Pipeline complete. Total records prepared across variants: {total_prepared}")
+    print(
+        f"Pipeline complete. Total records prepared across variants: {total_prepared}"
+    )
 
 
 if __name__ == "__main__":

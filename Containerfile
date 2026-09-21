@@ -31,7 +31,8 @@ LABEL project="MAURICE"
 
 ENV PYTHONUNBUFFERED=1 \
     DEBIAN_FRONTEND=noninteractive \
-    PATH="/home/maurice/bin:/home/maurice/.local/bin:${PATH}"
+    PATH="/home/maurice/bin:/home/maurice/.local/bin:${PATH}" \
+    LD_LIBRARY_PATH="/home/maurice/bin:${LD_LIBRARY_PATH}"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
@@ -44,10 +45,8 @@ RUN useradd -m -u 1001 -s /bin/bash maurice
 USER maurice
 WORKDIR /home/maurice/app
 
-# Copia binários C++ compilados com glibc
-COPY --from=builder-native --chown=maurice:maurice /src/llama.cpp/build/bin/llama-cli /home/maurice/bin/llama-cli
-COPY --from=builder-native --chown=maurice:maurice /src/llama.cpp/build/bin/llama-quantize /home/maurice/bin/llama-quantize
-COPY --from=builder-native --chown=maurice:maurice /src/llama.cpp/build/bin/llama-imatrix /home/maurice/bin/llama-imatrix
+# Copia binários C++ e bibliotecas compartilhadas (.so) compilados com glibc
+COPY --from=builder-native --chown=maurice:maurice /src/llama.cpp/build/bin/ /home/maurice/bin/
 
 RUN chmod +x /home/maurice/bin/*
 
