@@ -1,0 +1,11 @@
+.git
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+build/
+checkpoints/
+data/processed/*
+!data/processed/.gitkeep
+EOF
