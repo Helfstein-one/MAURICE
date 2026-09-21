@@ -11,8 +11,23 @@ Filters and formats datasets into ChatML JSONL format with calibrated <think> ta
 import argparse
 import ast
 import json
+import logging
 import os
 from typing import Any
+
+from tqdm import tqdm
+
+os.makedirs("logs", exist_ok=True)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler("logs/pipeline.log"),
+    ],
+)
+logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPTS = {
     "c": (
@@ -152,89 +167,97 @@ def process_variant(
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     records = []
 
-    if synthetic:
-        print(f"Generating synthetic records for variant '{variant}'...")
-        records = generate_synthetic_samples(variant, count=sample_size)
-    else:
-        try:
-            from datasets import load_dataset
-
-            print(f"Attempting to load HF dataset for variant '{variant}'...")
-            if variant == "c":
-                ds = load_dataset(
-                    "bigcode/the-stack-smol-xs",
-                    data_dir="data/python",
-                    split=f"train[:{sample_size}]",
-                )
-                sys_prompt = SYSTEM_PROMPTS["c"]
-                for row in ds:
-                    code = row.get("content", "")
-                    if validate_code_syntax(code, "python"):
-                        records.append(
-                            format_chatml_example(
-                                sys_prompt,
-                                "Validate and format the following code module:",
-                                f"<think>\nParsing AST for Python code...\nValid syntax confirmed.\n</think>\n```python\n{code}\n```",
-                            )
-                        )
-            elif variant == "r":
-                ds = load_dataset(
-                    "HuggingFaceH4/Bespoke-Stratos-17k",
-                    split=f"train[:{sample_size}]",
-                )
-                sys_prompt = SYSTEM_PROMPTS["r"]
-                for row in ds:
-                    conversations = row.get("conversations", [])
-                    if conversations:
-                        user_val = conversations[0].get("value", "")
-                        assistant_val = (
-                            conversations[1].get("value", "")
-                            if len(conversations) > 1
-                            else ""
-                        )
-                        records.append(
-                            format_chatml_example(sys_prompt, user_val, assistant_val)
-                        )
-            elif variant == "g":
-                ds = load_dataset(
-                    "teknium/OpenHermes-2.5", split=f"train[:{sample_size}]"
-                )
-                sys_prompt = SYSTEM_PROMPTS["g"]
-                for row in ds:
-                    instruction = row.get("instruction", "")
-                    output = row.get("output", "")
-                    if not output.startswith("<think>"):
-                        output = f"<think>\n</think>\n{output}"
-                    records.append(
-                        format_chatml_example(sys_prompt, instruction, output)
-                    )
-        except Exception as e:  # noqa: BLE001
-            print(
-                f"Warning: Failed to load HF dataset ({e}). Falling back to synthetic sample generation."
-            )
+    try:
+        if synthetic:
+            logger.info(f"Generating synthetic records for variant '{variant}'...")
             records = generate_synthetic_samples(variant, count=sample_size)
+        else:
+            try:
+                from datasets import load_dataset
 
-    valid_records = []
-    for record in records:
-        msgs = record.get("messages", [])
-        if (
-            len(msgs) == 3
-            and msgs[0]["role"] == "system"
-            and msgs[1]["role"] == "user"
-            and msgs[2]["role"] == "assistant"
-        ):
-            assistant_content = msgs[2].get("content", "")
-            if variant == "r" and not validate_think_tags(assistant_content):
-                continue
-            valid_records.append(record)
+                logger.info(f"Attempting to load HF dataset for variant '{variant}'...")
+                if variant == "c":
+                    ds = load_dataset(
+                        "bigcode/the-stack-smol-xs",
+                        data_dir="data/python",
+                        split=f"train[:{sample_size}]",
+                    )
+                    sys_prompt = SYSTEM_PROMPTS["c"]
+                    for row in ds:
+                        code = row.get("content", "")
+                        if validate_code_syntax(code, "python"):
+                            records.append(
+                                format_chatml_example(
+                                    sys_prompt,
+                                    "Validate and format the following code module:",
+                                    f"<think>\nParsing AST for Python code...\nValid syntax confirmed.\n</think>\n```python\n{code}\n```",
+                                )
+                            )
+                elif variant == "r":
+                    ds = load_dataset(
+                        "HuggingFaceH4/Bespoke-Stratos-17k",
+                        split=f"train[:{sample_size}]",
+                    )
+                    sys_prompt = SYSTEM_PROMPTS["r"]
+                    for row in ds:
+                        conversations = row.get("conversations", [])
+                        if conversations:
+                            user_val = conversations[0].get("value", "")
+                            assistant_val = (
+                                conversations[1].get("value", "")
+                                if len(conversations) > 1
+                                else ""
+                            )
+                            records.append(
+                                format_chatml_example(
+                                    sys_prompt, user_val, assistant_val
+                                )
+                            )
+                elif variant == "g":
+                    ds = load_dataset(
+                        "teknium/OpenHermes-2.5", split=f"train[:{sample_size}]"
+                    )
+                    sys_prompt = SYSTEM_PROMPTS["g"]
+                    for row in ds:
+                        instruction = row.get("instruction", "")
+                        output = row.get("output", "")
+                        if not output.startswith("<think>"):
+                            output = f"<think>\n</think>\n{output}"
+                        records.append(
+                            format_chatml_example(sys_prompt, instruction, output)
+                        )
+            except Exception as e:  # noqa: BLE001
+                logger.warning(
+                    f"Failed to load HF dataset ({e}). Falling back to synthetic sample generation."
+                )
+                records = generate_synthetic_samples(variant, count=sample_size)
 
-    with open(output_path, "w", encoding="utf-8") as f:
-        f.writelines(
-            json.dumps(rec, ensure_ascii=False) + "\n" for rec in valid_records
-        )
+        valid_records = []
+        for record in tqdm(records, desc=f"Processing variant {variant}", unit="ex"):
+            msgs = record.get("messages", [])
+            if (
+                len(msgs) == 3
+                and msgs[0]["role"] == "system"
+                and msgs[1]["role"] == "user"
+                and msgs[2]["role"] == "assistant"
+            ):
+                assistant_content = msgs[2].get("content", "")
+                if variant == "r" and not validate_think_tags(assistant_content):
+                    continue
+                valid_records.append(record)
 
-    print(f"Successfully wrote {len(valid_records)} records to {output_path}")
-    return len(valid_records)
+        with open(output_path, "w", encoding="utf-8") as f:
+            f.writelines(
+                json.dumps(rec, ensure_ascii=False) + "\n" for rec in valid_records
+            )
+
+        logger.info(f"Successfully wrote {len(valid_records)} records to {output_path}")
+        return len(valid_records)
+    except Exception as e:
+        logger.error(f"Error processing variant '{variant}': {e}")
+        if os.path.exists(output_path):
+            os.remove(output_path)
+        raise
 
 
 def main():
@@ -265,16 +288,20 @@ def main():
     variants = ["c", "r", "g"] if args.variant == "all" else [args.variant]
 
     total_prepared = 0
-    for v in variants:
-        out_file = f"data/processed/train_{v}.jsonl"
-        count = process_variant(
-            v, out_file, sample_size=args.sample_size, synthetic=args.synthetic
-        )
-        total_prepared += count
+    try:
+        for v in variants:
+            out_file = f"data/processed/train_{v}.jsonl"
+            count = process_variant(
+                v, out_file, sample_size=args.sample_size, synthetic=args.synthetic
+            )
+            total_prepared += count
 
-    print(
-        f"Pipeline complete. Total records prepared across variants: {total_prepared}"
-    )
+        logger.info(
+            f"Pipeline complete. Total records prepared across variants: {total_prepared}"
+        )
+    except Exception as e:
+        logger.error(f"Dataset preparation pipeline failed: {e}")
+        raise
 
 
 if __name__ == "__main__":

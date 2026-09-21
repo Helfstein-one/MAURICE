@@ -15,8 +15,22 @@ Includes fallback/dry-run mode for non-CUDA or mock execution environments.
 
 import argparse
 import json
+import logging
 import os
+import shutil
 from typing import Any
+
+os.makedirs("logs", exist_ok=True)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler("logs/pipeline.log"),
+    ],
+)
+logger = logging.getLogger(__name__)
 
 
 def load_variant_config(variant: str, config_dir: str = "configs") -> dict[str, Any]:
@@ -52,112 +66,118 @@ def run_training(
 
     os.makedirs(output_dir, exist_ok=True)
 
-    print("==================================================")
-    print(f"Starting QLoRA Fine-Tuning for Variant: {variant_name}")
-    print(f"Base Model: {base_model}")
-    print(f"Dataset: {dataset_file}")
-    print(f"Output Directory: {output_dir}")
-    print(f"Target Modules: {config['lora']['target_modules']}")
-    print(
+    logger.info("==================================================")
+    logger.info(f"Starting QLoRA Fine-Tuning for Variant: {variant_name}")
+    logger.info(f"Base Model: {base_model}")
+    logger.info(f"Dataset: {dataset_file}")
+    logger.info(f"Output Directory: {output_dir}")
+    logger.info(f"Target Modules: {config['lora']['target_modules']}")
+    logger.info(
         f"LoRA Config: r={config['lora']['r']}, alpha={config['lora']['lora_alpha']}, dropout={config['lora']['lora_dropout']}"
     )
-    print(f"Max Sequence Length: {config.get('max_seq_length', 4096)}")
-    print("==================================================")
-
-    if dry_run:
-        print(
-            "[Dry-Run Mode] Simulating training loop and saving dummy adapter checkpoint..."
-        )
-        dummy_adapter = {
-            "variant": variant,
-            "base_model": base_model,
-            "lora_config": config["lora"],
-            "status": "trained_successfully",
-            "peft_type": "LORA",
-            "target_modules": config["lora"]["target_modules"],
-        }
-        with open(
-            os.path.join(output_dir, "adapter_config.json"), "w", encoding="utf-8"
-        ) as f:
-            json.dump(dummy_adapter, f, indent=2)
-        with open(
-            os.path.join(output_dir, "adapter_model.bin"), "w", encoding="utf-8"
-        ) as f:
-            f.write("DUMMY_LORA_WEIGHTS\n")
-        print(f"[Dry-Run Mode] Saved mock adapter weights to {output_dir}")
-        return
+    logger.info(f"Max Sequence Length: {config.get('max_seq_length', 4096)}")
+    logger.info("==================================================")
 
     try:
-        import torch
-        from transformers import AutoTokenizer
+        if dry_run:
+            logger.info(
+                "[Dry-Run Mode] Simulating training loop and saving dummy adapter checkpoint..."
+            )
+            dummy_adapter = {
+                "variant": variant,
+                "base_model": base_model,
+                "lora_config": config["lora"],
+                "status": "trained_successfully",
+                "peft_type": "LORA",
+                "target_modules": config["lora"]["target_modules"],
+            }
+            with open(
+                os.path.join(output_dir, "adapter_config.json"), "w", encoding="utf-8"
+            ) as f:
+                json.dump(dummy_adapter, f, indent=2)
+            with open(
+                os.path.join(output_dir, "adapter_model.bin"), "w", encoding="utf-8"
+            ) as f:
+                f.write("DUMMY_LORA_WEIGHTS\n")
+            logger.info(f"[Dry-Run Mode] Saved mock adapter weights to {output_dir}")
+            return
 
         try:
-            from unsloth import FastLanguageModel
+            import torch
+            from transformers import AutoTokenizer
 
-            print("Using Unsloth FastLanguageModel optimization path.")
-            model, tokenizer = FastLanguageModel.from_pretrained(
-                model_name=base_model,
-                max_seq_length=config.get("max_seq_length", 4096),
-                load_in_4bit=config["training"].get("load_in_4bit", True),
-                dtype=None,
-            )
-            model = FastLanguageModel.get_peft_model(
-                model,
-                r=config["lora"]["r"],
-                target_modules=config["lora"]["target_modules"],
-                lora_alpha=config["lora"]["lora_alpha"],
-                lora_dropout=config["lora"]["lora_dropout"],
-                bias="none",
-                use_gradient_checkpointing="unsloth",
-                random_state=3407,
-            )
-        except ImportError:
-            print(
-                "Unsloth not detected. Falling back to standard Hugging Face PEFT/bitsandbytes."
-            )
-            from peft import LoraConfig, get_peft_model
-            from transformers import AutoModelForCausalLM
+            try:
+                from unsloth import FastLanguageModel
 
-            tokenizer = AutoTokenizer.from_pretrained(base_model)
-            model = AutoModelForCausalLM.from_pretrained(
-                base_model,
-                load_in_4bit=config["training"].get("load_in_4bit", True),
-                device_map="auto" if torch.cuda.is_available() else None,
-            )
-            peft_config = LoraConfig(
-                r=config["lora"]["r"],
-                lora_alpha=config["lora"]["lora_alpha"],
-                target_modules=config["lora"]["target_modules"],
-                lora_dropout=config["lora"]["lora_dropout"],
-                bias="none",
-                task_type="CAUSAL_LM",
-            )
-            model = get_peft_model(model, peft_config)
+                logger.info("Using Unsloth FastLanguageModel optimization path.")
+                model, tokenizer = FastLanguageModel.from_pretrained(
+                    model_name=base_model,
+                    max_seq_length=config.get("max_seq_length", 4096),
+                    load_in_4bit=config["training"].get("load_in_4bit", True),
+                    dtype=None,
+                )
+                model = FastLanguageModel.get_peft_model(
+                    model,
+                    r=config["lora"]["r"],
+                    target_modules=config["lora"]["target_modules"],
+                    lora_alpha=config["lora"]["lora_alpha"],
+                    lora_dropout=config["lora"]["lora_dropout"],
+                    bias="none",
+                    use_gradient_checkpointing="unsloth",
+                    random_state=3407,
+                )
+            except ImportError:
+                logger.info(
+                    "Unsloth not detected. Falling back to standard Hugging Face PEFT/bitsandbytes."
+                )
+                from peft import LoraConfig, get_peft_model
+                from transformers import AutoModelForCausalLM
 
-        model.save_pretrained(output_dir)
-        tokenizer.save_pretrained(output_dir)
-        print(f"Training complete. Adapter saved to {output_dir}")
+                tokenizer = AutoTokenizer.from_pretrained(base_model)
+                model = AutoModelForCausalLM.from_pretrained(
+                    base_model,
+                    load_in_4bit=config["training"].get("load_in_4bit", True),
+                    device_map="auto" if torch.cuda.is_available() else None,
+                )
+                peft_config = LoraConfig(
+                    r=config["lora"]["r"],
+                    lora_alpha=config["lora"]["lora_alpha"],
+                    target_modules=config["lora"]["target_modules"],
+                    lora_dropout=config["lora"]["lora_dropout"],
+                    bias="none",
+                    task_type="CAUSAL_LM",
+                )
+                model = get_peft_model(model, peft_config)
 
-    except Exception as e:  # noqa: BLE001
-        print(
-            f"Error encountered during GPU training setup ({e}). Falling back to dry-run mode for pipeline verification."
-        )
-        dummy_adapter = {
-            "variant": variant,
-            "base_model": base_model,
-            "lora_config": config["lora"],
-            "status": "trained_fallback",
-            "peft_type": "LORA",
-        }
-        with open(
-            os.path.join(output_dir, "adapter_config.json"), "w", encoding="utf-8"
-        ) as f:
-            json.dump(dummy_adapter, f, indent=2)
-        with open(
-            os.path.join(output_dir, "adapter_model.bin"), "w", encoding="utf-8"
-        ) as f:
-            f.write("FALLBACK_LORA_WEIGHTS\n")
-        print(f"Fallback adapter checkpoint saved to {output_dir}")
+            model.save_pretrained(output_dir)
+            tokenizer.save_pretrained(output_dir)
+            logger.info(f"Training complete. Adapter saved to {output_dir}")
+
+        except Exception as e:  # noqa: BLE001
+            logger.warning(
+                f"Error encountered during GPU training setup ({e}). Falling back to dry-run mode for pipeline verification."
+            )
+            dummy_adapter = {
+                "variant": variant,
+                "base_model": base_model,
+                "lora_config": config["lora"],
+                "status": "trained_fallback",
+                "peft_type": "LORA",
+            }
+            with open(
+                os.path.join(output_dir, "adapter_config.json"), "w", encoding="utf-8"
+            ) as f:
+                json.dump(dummy_adapter, f, indent=2)
+            with open(
+                os.path.join(output_dir, "adapter_model.bin"), "w", encoding="utf-8"
+            ) as f:
+                f.write("FALLBACK_LORA_WEIGHTS\n")
+            logger.info(f"Fallback adapter checkpoint saved to {output_dir}")
+
+    except Exception as e:
+        logger.error(f"Training failed: {e}")
+        shutil.rmtree(output_dir, ignore_errors=True)
+        raise
 
 
 def main():

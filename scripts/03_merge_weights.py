@@ -8,7 +8,21 @@ Export call using save_method="merged_16bit" (or unsloth/PEFT merge_and_unload()
 
 import argparse
 import json
+import logging
 import os
+import shutil
+
+os.makedirs("logs", exist_ok=True)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler("logs/pipeline.log"),
+    ],
+)
+logger = logging.getLogger(__name__)
 
 
 def merge_weights(
@@ -25,88 +39,102 @@ def merge_weights(
 
     os.makedirs(output_dir, exist_ok=True)
 
-    print("==================================================")
-    print(f"Starting Weight Merge for Variant '{variant}'")
-    print(f"Adapter Path: {adapter_path}")
-    print(f"Output Directory: {output_dir}")
-    print(f"Save Method: {save_method}")
-    print("==================================================")
-
-    if dry_run or not os.path.exists(os.path.join(adapter_path, "adapter_config.json")):
-        print(
-            "[Dry-Run / Fallback Mode] Creating consolidated 16-bit mock checkpoint metadata..."
-        )
-        merged_meta = {
-            "variant": variant,
-            "architecture": "DeepSeekR1ForCausalLM",
-            "merge_method": save_method,
-            "precision": "16bit",
-            "status": "merged_successfully",
-        }
-        with open(os.path.join(output_dir, "config.json"), "w", encoding="utf-8") as f:
-            json.dump(merged_meta, f, indent=2)
-        with open(
-            os.path.join(output_dir, "model.safetensors"), "w", encoding="utf-8"
-        ) as f:
-            f.write("MOCK_16BIT_MERGED_WEIGHTS\n")
-        print(f"Merged model saved to {output_dir}")
-        return
+    logger.info("==================================================")
+    logger.info(f"Starting Weight Merge for Variant '{variant}'")
+    logger.info(f"Adapter Path: {adapter_path}")
+    logger.info(f"Output Directory: {output_dir}")
+    logger.info(f"Save Method: {save_method}")
+    logger.info("==================================================")
 
     try:
-        import torch
-        from transformers import AutoModelForCausalLM, AutoTokenizer
+        if dry_run or not os.path.exists(
+            os.path.join(adapter_path, "adapter_config.json")
+        ):
+            logger.info(
+                "[Dry-Run / Fallback Mode] Creating consolidated 16-bit mock checkpoint metadata..."
+            )
+            merged_meta = {
+                "variant": variant,
+                "architecture": "DeepSeekR1ForCausalLM",
+                "merge_method": save_method,
+                "precision": "16bit",
+                "status": "merged_successfully",
+            }
+            with open(
+                os.path.join(output_dir, "config.json"), "w", encoding="utf-8"
+            ) as f:
+                json.dump(merged_meta, f, indent=2)
+            with open(
+                os.path.join(output_dir, "model.safetensors"), "w", encoding="utf-8"
+            ) as f:
+                f.write("MOCK_16BIT_MERGED_WEIGHTS\n")
+            logger.info(f"Merged model saved to {output_dir}")
+            return
 
         try:
-            from unsloth import FastLanguageModel
+            import torch
+            from transformers import AutoModelForCausalLM, AutoTokenizer
 
-            print("Using Unsloth save_pretrained_merged method...")
-            model, tokenizer = FastLanguageModel.from_pretrained(
-                model_name=adapter_path,
-                max_seq_length=4096,
-                load_in_4bit=False,
-            )
-            model.save_pretrained_merged(output_dir, tokenizer, save_method=save_method)
-            print(f"Unsloth merged model exported to {output_dir}")
-        except Exception as unsloth_err:  # noqa: BLE001
-            print(
-                f"Unsloth merge skipped ({unsloth_err}). Trying standard PEFT merge_and_unload..."
-            )
-            from peft import PeftModel
+            try:
+                from unsloth import FastLanguageModel
 
-            with open(os.path.join(adapter_path, "adapter_config.json"), "r") as f:
-                adapter_cfg = json.load(f)
-            base_model_name = adapter_cfg.get(
-                "base_model", "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
-            )
+                logger.info("Using Unsloth save_pretrained_merged method...")
+                model, tokenizer = FastLanguageModel.from_pretrained(
+                    model_name=adapter_path,
+                    max_seq_length=4096,
+                    load_in_4bit=False,
+                )
+                model.save_pretrained_merged(
+                    output_dir, tokenizer, save_method=save_method
+                )
+                logger.info(f"Unsloth merged model exported to {output_dir}")
+            except Exception as unsloth_err:  # noqa: BLE001
+                logger.warning(
+                    f"Unsloth merge skipped ({unsloth_err}). Trying standard PEFT merge_and_unload..."
+                )
+                from peft import PeftModel
 
-            base_model = AutoModelForCausalLM.from_pretrained(
-                base_model_name, torch_dtype=torch.float16, device_map="cpu"
-            )
-            model = PeftModel.from_pretrained(base_model, adapter_path)
-            merged_model = model.merge_and_unload()
-            merged_model.save_pretrained(output_dir)
-            tokenizer = AutoTokenizer.from_pretrained(base_model_name)
-            tokenizer.save_pretrained(output_dir)
-            print(f"PEFT merged model saved to {output_dir}")
+                with open(os.path.join(adapter_path, "adapter_config.json"), "r") as f:
+                    adapter_cfg = json.load(f)
+                base_model_name = adapter_cfg.get(
+                    "base_model", "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
+                )
 
-    except Exception as e:  # noqa: BLE001
-        print(
-            f"Merge execution encountered error ({e}). Creating fallback merged checkpoint..."
-        )
-        merged_meta = {
-            "variant": variant,
-            "architecture": "DeepSeekR1ForCausalLM",
-            "merge_method": save_method,
-            "precision": "16bit",
-            "status": "merged_fallback",
-        }
-        with open(os.path.join(output_dir, "config.json"), "w", encoding="utf-8") as f:
-            json.dump(merged_meta, f, indent=2)
-        with open(
-            os.path.join(output_dir, "model.safetensors"), "w", encoding="utf-8"
-        ) as f:
-            f.write("FALLBACK_16BIT_MERGED_WEIGHTS\n")
-        print(f"Fallback merged model saved to {output_dir}")
+                base_model = AutoModelForCausalLM.from_pretrained(
+                    base_model_name, torch_dtype=torch.float16, device_map="cpu"
+                )
+                model = PeftModel.from_pretrained(base_model, adapter_path)
+                merged_model = model.merge_and_unload()
+                merged_model.save_pretrained(output_dir)
+                tokenizer = AutoTokenizer.from_pretrained(base_model_name)
+                tokenizer.save_pretrained(output_dir)
+                logger.info(f"PEFT merged model saved to {output_dir}")
+
+        except Exception as e:  # noqa: BLE001
+            logger.warning(
+                f"Merge execution encountered error ({e}). Creating fallback merged checkpoint..."
+            )
+            merged_meta = {
+                "variant": variant,
+                "architecture": "DeepSeekR1ForCausalLM",
+                "merge_method": save_method,
+                "precision": "16bit",
+                "status": "merged_fallback",
+            }
+            with open(
+                os.path.join(output_dir, "config.json"), "w", encoding="utf-8"
+            ) as f:
+                json.dump(merged_meta, f, indent=2)
+            with open(
+                os.path.join(output_dir, "model.safetensors"), "w", encoding="utf-8"
+            ) as f:
+                f.write("FALLBACK_16BIT_MERGED_WEIGHTS\n")
+            logger.info(f"Fallback merged model saved to {output_dir}")
+
+    except Exception as e:
+        logger.error(f"Merge failed: {e}")
+        shutil.rmtree(output_dir, ignore_errors=True)
+        raise
 
 
 def main():

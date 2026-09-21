@@ -14,11 +14,24 @@ Automates tracking of metrics:
 
 import argparse
 import json
+import logging
 import os
 import platform
 import subprocess
 import time
 from typing import Any
+
+os.makedirs("logs", exist_ok=True)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler("logs/pipeline.log"),
+    ],
+)
+logger = logging.getLogger(__name__)
 
 try:
     import psutil
@@ -66,11 +79,11 @@ def run_benchmark_variant(
     hw_target = detect_hardware_accel()
     start_mem_mb = get_peak_rss_mb()
 
-    print("==================================================")
-    print(f"Running Hardware Benchmark & Evaluation: Variant '{variant}'")
-    print(f"Target Model: {model_path}")
-    print(f"Hardware Target: {hw_target}")
-    print("==================================================")
+    logger.info("==================================================")
+    logger.info(f"Running Hardware Benchmark & Evaluation: Variant '{variant}'")
+    logger.info(f"Target Model: {model_path}")
+    logger.info(f"Hardware Target: {hw_target}")
+    logger.info("==================================================")
 
     tokens_per_sec = 0.0
     ttft_ms = 0.0
@@ -87,8 +100,8 @@ def run_benchmark_variant(
                     check=False,
                 )
                 if res.returncode == 0:
-                    print(f"Successfully ran {llama_cmd}:")
-                    print(res.stdout)
+                    logger.info(f"Successfully ran {llama_cmd}:")
+                    logger.info(res.stdout)
                     llama_bench_ran = True
                     tokens_per_sec = 84.5
                     ttft_ms = 18.2
@@ -141,7 +154,7 @@ def run_benchmark_variant(
         },
     }
 
-    print(json.dumps(results, indent=2))
+    logger.info(f"Variant '{variant}' results:\n{json.dumps(results, indent=2)}")
     return results
 
 
@@ -168,18 +181,30 @@ def main():
     args = parser.parse_args()
     variants = ["c", "r", "g"] if args.variant == "all" else [args.variant]
 
-    all_results = []
-    for v in variants:
-        res = run_benchmark_variant(
-            v, model_path=args.model_path if args.variant != "all" else None
-        )
-        all_results.append(res)
+    t0 = time.perf_counter()
+    try:
+        all_results = []
+        for v in variants:
+            res = run_benchmark_variant(
+                v, model_path=args.model_path if args.variant != "all" else None
+            )
+            all_results.append(res)
 
-    os.makedirs(os.path.dirname(args.output_json), exist_ok=True)
-    with open(args.output_json, "w", encoding="utf-8") as f:
-        json.dump(all_results, f, indent=2)
+        os.makedirs(os.path.dirname(args.output_json), exist_ok=True)
+        with open(args.output_json, "w", encoding="utf-8") as f:
+            json.dump(all_results, f, indent=2)
 
-    print(f"\nSaved hardware evaluation report to {args.output_json}")
+        elapsed = time.perf_counter() - t0
+        logger.info(f"Saved hardware evaluation report to {args.output_json}")
+        logger.info(f"Benchmark completed in {elapsed:.2f}s")
+    except Exception as e:
+        logger.error(f"Benchmark evaluation failed: {e}")
+        if os.path.exists(args.output_json):
+            try:
+                os.remove(args.output_json)
+            except OSError:
+                pass
+        raise
 
 
 if __name__ == "__main__":

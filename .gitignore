@@ -8,3 +8,4 @@ build/
 checkpoints/
 data/processed/*
 !data/processed/.gitkeep
+logs/*.log
