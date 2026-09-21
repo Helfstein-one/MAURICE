@@ -16,6 +16,7 @@ RUN git clone --depth 1 https://github.com/ggerganov/llama.cpp.git
 WORKDIR /src/llama.cpp
 RUN cmake -B build \
     -DCMAKE_BUILD_TYPE=Release \
+    -DBUILD_SHARED_LIBS=OFF \
     -DGGML_AVX=ON \
     -DGGML_AVX2=ON \
     -DGGML_FMA=ON
