@@ -1,4 +1,4 @@
-name: MAURICE Sequential CI Pipeline
+name: MAURICE Tree-Structured CI Pipeline
 
 on:
   push:
@@ -8,12 +8,12 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   # ==========================================================
-  # NÍVEL 1: Análise Estática e Qualidade (Trava imediata)
+  # RAIZ: Quality Gate & Linting (Fail-Fast)
   # ==========================================================
   code_quality:
     name: 01 - Code Quality & Lint
@@ -39,10 +39,10 @@ jobs:
           ruff format --check .
 
   # ==========================================================
-  # NÍVEL 2: Testes Unitários de Schema e Parsing
+  # RAMO ESQUERDO: Testes Unitários de Schema e Parsing
   # ==========================================================
   unit_tests:
-    name: 02 - Unit & Schema Tests
+    name: 02A - Unit & Schema Tests
     needs: code_quality
     runs-on: ubuntu-latest
     steps:
@@ -57,7 +57,7 @@ jobs:
 
       - name: Install Test Dependencies
         run: |
-          pip install pytest datasets
+          pip install pytest datasets pydantic
           pip install -e . 2>/dev/null || true
 
       - name: Run Pytest
@@ -65,11 +65,11 @@ jobs:
           pytest tests/ -v -m "not slow"
 
   # ==========================================================
-  # NÍVEL 3: Build Podman & Validação do Runtime Nativo C++
+  # RAMO DIREITO: Build Nativo Podman / llama.cpp (Paralelo a 02A)
   # ==========================================================
   container_build:
-    name: 03 - Podman Build & llama-cli Execution
-    needs: unit_tests
+    name: 02B - Podman & Native C++ Build
+    needs: code_quality
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -89,12 +89,17 @@ jobs:
           podman run --rm maurice:ci llama-cli --help
 
   # ==========================================================
-  # NÍVEL 4: Dry-Run do Pipeline de Modelos
+  # RAMIFICAÇÃO (FAN-OUT): Validação Isolada por Variante de Modelo
+  # Depende tanto dos testes de unidade quanto do container compilado
   # ==========================================================
-  model_dryrun:
-    name: 04 - Pipeline Scripts Dry-Run (c, r, g)
-    needs: container_build
+  model_validation_matrix:
+    name: 03 - Validate Variant (${{ matrix.variant }})
+    needs: [unit_tests, container_build]
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [c, r, g]
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -104,10 +109,37 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Validate Scripts Compilation & Configs
+      - name: Validate Core Pipeline Scripts
         run: |
           python -m py_compile scripts/01_prepare_datasets.py
           python -m py_compile scripts/02_train_qlora.py
           python -m py_compile scripts/03_merge_weights.py
           python -m py_compile scripts/05_benchmark_eval.py
-          echo "Todos os módulos e pipelines foram validados com sucesso."
+
+      - name: Dry-Run Specific Variant Config
+        run: |
+          echo "Validando configuração específica da variante: mau-llm-1.0-${{ matrix.variant }}"
+          if [ -f "configs/variant_${{ matrix.variant }}.json" ]; then
+            python -c "import json; json.load(open('configs/variant_${{ matrix.variant }}.json'))"
+            echo "Config variant_${{ matrix.variant }}.json validada com sucesso."
+          else
+            echo "Aviso: configs/variant_${{ matrix.variant }}.json ainda não criado (ok em dry-run inicial)."
+          fi
+
+  # ==========================================================
+  # CONVERGÊNCIA (JOIN): Pipeline Gate de Sucesso Geral
+  # ==========================================================
+  pipeline_success:
+    name: 04 - Pipeline Gate (Tree Complete)
+    needs: [model_validation_matrix]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pipeline Complete
+        run: |
+          echo "=========================================================="
+          echo "Todos os ramos da árvore foram validados com sucesso!"
+          echo "- Lint & Estilo: OK"
+          echo "- Testes Unitários: OK"
+          echo "- Compilação Nativa llama.cpp / Podman: OK"
+          echo "- Variantes (c, r, g): OK"
+          echo "=========================================================="
