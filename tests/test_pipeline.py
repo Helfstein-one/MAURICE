@@ -73,9 +73,7 @@ class TestMauricePipeline(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(res.returncode, 0, f"Error: {res.stderr}")
-            self.assertTrue(
-                os.path.exists(f"checkpoints/merged_{v}/config.json")
-            )
+            self.assertTrue(os.path.exists(f"checkpoints/merged_{v}/config.json"))
 
     def test_quantize_imatrix(self):
         for v in ["c", "r", "g"]:
@@ -86,9 +84,7 @@ class TestMauricePipeline(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(res.returncode, 0, f"Error: {res.stderr}")
-            self.assertTrue(
-                os.path.exists(f"build/mau-llm-1.0-{v}-q4_k_m.gguf")
-            )
+            self.assertTrue(os.path.exists(f"build/mau-llm-1.0-{v}-q4_k_m.gguf"))
 
     def test_benchmark_eval(self):
         res = subprocess.run(

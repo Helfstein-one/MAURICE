@@ -32,9 +32,7 @@ def merge_weights(
     print(f"Save Method: {save_method}")
     print("==================================================")
 
-    if dry_run or not os.path.exists(
-        os.path.join(adapter_path, "adapter_config.json")
-    ):
+    if dry_run or not os.path.exists(os.path.join(adapter_path, "adapter_config.json")):
         print(
             "[Dry-Run / Fallback Mode] Creating consolidated 16-bit mock checkpoint metadata..."
         )
@@ -45,9 +43,7 @@ def merge_weights(
             "precision": "16bit",
             "status": "merged_successfully",
         }
-        with open(
-            os.path.join(output_dir, "config.json"), "w", encoding="utf-8"
-        ) as f:
+        with open(os.path.join(output_dir, "config.json"), "w", encoding="utf-8") as f:
             json.dump(merged_meta, f, indent=2)
         with open(
             os.path.join(output_dir, "model.safetensors"), "w", encoding="utf-8"
@@ -69,9 +65,7 @@ def merge_weights(
                 max_seq_length=4096,
                 load_in_4bit=False,
             )
-            model.save_pretrained_merged(
-                output_dir, tokenizer, save_method=save_method
-            )
+            model.save_pretrained_merged(output_dir, tokenizer, save_method=save_method)
             print(f"Unsloth merged model exported to {output_dir}")
         except Exception as unsloth_err:  # noqa: BLE001
             print(
@@ -79,9 +73,7 @@ def merge_weights(
             )
             from peft import PeftModel
 
-            with open(
-                os.path.join(adapter_path, "adapter_config.json"), "r"
-            ) as f:
+            with open(os.path.join(adapter_path, "adapter_config.json"), "r") as f:
                 adapter_cfg = json.load(f)
             base_model_name = adapter_cfg.get(
                 "base_model", "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
@@ -108,9 +100,7 @@ def merge_weights(
             "precision": "16bit",
             "status": "merged_fallback",
         }
-        with open(
-            os.path.join(output_dir, "config.json"), "w", encoding="utf-8"
-        ) as f:
+        with open(os.path.join(output_dir, "config.json"), "w", encoding="utf-8") as f:
             json.dump(merged_meta, f, indent=2)
         with open(
             os.path.join(output_dir, "model.safetensors"), "w", encoding="utf-8"
