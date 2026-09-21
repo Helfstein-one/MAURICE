@@ -9,8 +9,7 @@ Export call using save_method="merged_16bit" (or unsloth/PEFT merge_and_unload()
 import argparse
 import json
 import os
-import sys
-from typing import Dict, Any, Optional
+from typing import Optional
 
 def merge_weights(variant: str, adapter_path: Optional[str] = None, output_dir: Optional[str] = None, save_method: str = "merged_16bit", dry_run: bool = False):
     if not adapter_path:

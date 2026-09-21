@@ -1,0 +1,38 @@
+name: 01 - Code Quality & Fast Tests
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  lint:
+    name: Ruff Linter & Formatter
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Lint Tools
+        run: pip install ruff
+      - name: Check Formatting & Lint
+        run: |
+          ruff check .
+          ruff format --check .
+
+  unit-tests:
+    name: Schema & AST Unit Tests
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Run Unit Tests
+        run: |
+          pip install pytest datasets
+          pytest tests/ -v

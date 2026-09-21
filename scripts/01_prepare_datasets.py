@@ -12,9 +12,7 @@ import argparse
 import ast
 import json
 import os
-import re
-import sys
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 
 SYSTEM_PROMPTS = {
     "c": "You are mau-llm-1.0-c, an expert code and refactoring engine. Provide clean, syntactically verified code, unified diff patches, and structural refactoring instructions.",
@@ -137,7 +135,6 @@ def process_variant(variant: str, output_path: str, sample_size: int = 50, synth
                 ds = load_dataset("HuggingFaceH4/Bespoke-Stratos-17k", split=f"train[:{sample_size}]")
                 sys_prompt = SYSTEM_PROMPTS["r"]
                 for row in ds:
-                    system_val = row.get("system", sys_prompt)
                     conversations = row.get("conversations", [])
                     if conversations:
                         user_val = conversations[0].get("value", "")

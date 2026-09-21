@@ -16,7 +16,6 @@ Includes fallback/dry-run mode for non-CUDA or mock execution environments.
 import argparse
 import json
 import os
-import sys
 from typing import Dict, Any, Optional
 
 def load_variant_config(variant: str, config_dir: str = "configs") -> Dict[str, Any]:
@@ -65,14 +64,14 @@ def run_training(variant: str, config_path: Optional[str] = None, dry_run: bool 
         with open(os.path.join(output_dir, "adapter_config.json"), "w", encoding="utf-8") as f:
             json.dump(dummy_adapter, f, indent=2)
         with open(os.path.join(output_dir, "adapter_model.bin"), "w", encoding="utf-8") as f:
-            f.write(b"DUMMY_LORA_WEIGHTS\n".decode("utf-8"))
+            f.write("DUMMY_LORA_WEIGHTS\n")
         print(f"[Dry-Run Mode] Saved mock adapter weights to {output_dir}")
         return
 
     # Real training attempt using Unsloth or Hugging Face PEFT/TRL
     try:
         import torch
-        from transformers import AutoTokenizer, TrainingArguments
+        from transformers import AutoTokenizer
 
         # Check if unsloth is installed
         try:
@@ -132,7 +131,7 @@ def run_training(variant: str, config_path: Optional[str] = None, dry_run: bool 
         with open(os.path.join(output_dir, "adapter_config.json"), "w", encoding="utf-8") as f:
             json.dump(dummy_adapter, f, indent=2)
         with open(os.path.join(output_dir, "adapter_model.bin"), "w", encoding="utf-8") as f:
-            f.write(b"FALLBACK_LORA_WEIGHTS\n".decode("utf-8"))
+            f.write("FALLBACK_LORA_WEIGHTS\n")
         print(f"Fallback adapter checkpoint saved to {output_dir}")
 
 def main():
