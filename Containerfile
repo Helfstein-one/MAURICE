@@ -1,5 +1,5 @@
 # ==========================================================
-# Stage 1: Build Nativo do llama.cpp com glibc (Debian)
+# Stage 1: Build Nativo do llama.cpp com glibc (Debian Bookworm)
 # ==========================================================
 FROM docker.io/library/debian:bookworm-slim AS builder-native
 
@@ -16,6 +16,7 @@ RUN git clone --depth 1 https://github.com/ggerganov/llama.cpp.git
 WORKDIR /src/llama.cpp
 RUN cmake -B build \
     -DCMAKE_BUILD_TYPE=Release \
+    -DBUILD_SHARED_LIBS=OFF \
     -DGGML_AVX=ON \
     -DGGML_AVX2=ON \
     -DGGML_FMA=ON
@@ -24,7 +25,7 @@ RUN cmake --build build --config Release -j$(nproc) --target llama-cli llama-qua
 # ==========================================================
 # Stage 2: Runtime Environment (100% glibc compatível)
 # ==========================================================
-FROM docker.io/library/python:3.11-slim
+FROM docker.io/library/python:3.11-slim-bookworm
 
 LABEL maintainer="Maurício Helfstein Gonçalves"
 LABEL project="MAURICE"
