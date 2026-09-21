@@ -3,8 +3,8 @@
   "hardware_acceleration": "x86_64 CPU (AVX2)",
   "metrics": {
     "tokens_per_second": 512.0,
-    "time_to_first_token_ms": 20.16,
-    "peak_rss_mb": 156.25,
+    "time_to_first_token_ms": 20.14,
+    "peak_rss_mb": 156.55,
     "evaluation_scores": {
       "eval_benchmark": "GSM8k / MATH",
       "reasoning_tag_calibration_rate": 0.998,

@@ -57,4 +57,4 @@ RUN pip install --no-cache-dir --user -r requirements.txt 2>/dev/null || true
 # Copia o código-fonte
 COPY --chown=maurice:maurice . .
 
-ENTRYPOINT ["/bin/bash"]
+CMD ["/bin/bash"]
