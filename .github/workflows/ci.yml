@@ -15,7 +15,7 @@ jobs:
   # ==========================================================
   # NÍVEL 1: Raiz Fail-Fast (Sintaxe Rápida)
   # ==========================================================
-  01_syntax_check:
+  syntax_check:
     name: 01 - Python AST Syntax
     runs-on: ubuntu-latest
     steps:
@@ -30,9 +30,9 @@ jobs:
   # ==========================================================
   # NÍVEL 2: Linters Especializados em Paralelo
   # ==========================================================
-  02a_python_lint:
+  python_lint:
     name: 02A - Ruff Linter & Formatter
-    needs: 01_syntax_check
+    needs: syntax_check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -45,9 +45,9 @@ jobs:
           ruff check .
           ruff format --check .
 
-  02b_bash_lint:
+  bash_lint:
     name: 02B - Shell Scripts Validation
-    needs: 01_syntax_check
+    needs: syntax_check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -57,9 +57,9 @@ jobs:
           find . -name "*.sh" -not -path "*/.*" -exec bash -n {} +
           find . -name "*.sh" -not -path "*/.*" -exec shellcheck -e SC1091 {} +
 
-  02c_config_lint:
+  config_lint:
     name: 02C - JSON & Config Schema Validation
-    needs: 01_syntax_check
+    needs: syntax_check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -83,9 +83,9 @@ jobs:
   # ==========================================================
   # NÍVEL 3 - RAMO 1 (MLOps): Testes de Dados e Schemas
   # ==========================================================
-  03a_dataset_schemas:
+  dataset_schemas:
     name: 03A - Dataset Schemas & ChatML Tags
-    needs: [02a_python_lint, 02c_config_lint]
+    needs: [python_lint, config_lint]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -97,9 +97,9 @@ jobs:
       - name: Test Reasoning Tags and Schemas
         run: pytest tests/test_dataset_filter.py -v -k "tag or schema" 2>/dev/null || pytest tests/ -v -m "not slow"
 
-  03b_ast_code_filter:
+  ast_code_filter:
     name: 03B - AST Code Filter & Unified Diffs
-    needs: [02a_python_lint]
+    needs: [python_lint]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -114,9 +114,9 @@ jobs:
   # ==========================================================
   # NÍVEL 3 - RAMO 2 (Systems): Container e Toolchains C++
   # ==========================================================
-  03c_podman_build:
+  podman_build:
     name: 03C - Containerfile Build & Binary Verification
-    needs: [02a_python_lint, 02b_bash_lint]
+    needs: [python_lint, bash_lint]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -127,9 +127,9 @@ jobs:
       - name: Verify llama-cli ABI Execution
         run: podman run --rm maurice:ci llama-cli --help
 
-  03d_gguf_toolchain:
+  gguf_toolchain:
     name: 03D - GGUF Scripts & CLI Flags
-    needs: [02b_bash_lint]
+    needs: [bash_lint]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -142,9 +142,9 @@ jobs:
   # ==========================================================
   # NÍVEL 4 - RAMO 1 (MLOps): Validação de Treino & Exportação
   # ==========================================================
-  04a_train_dryrun:
+  train_dryrun:
     name: 04A - Training Harness Dry-Run (Unsloth CLI)
-    needs: [03a_dataset_schemas, 03b_ast_code_filter]
+    needs: [dataset_schemas, ast_code_filter]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -155,9 +155,9 @@ jobs:
         run: |
           python scripts/02_train_qlora.py --help 2>/dev/null || python -m py_compile scripts/02_train_qlora.py
 
-  04b_merge_dryrun:
+  merge_dryrun:
     name: 04B - Safetensors Weight-Merge Dry-Run
-    needs: [03a_dataset_schemas]
+    needs: [dataset_schemas]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -171,16 +171,16 @@ jobs:
   # ==========================================================
   # NÍVEL 5: Portões de Domínio (Gates Intermediários)
   # ==========================================================
-  05a_mlops_gate:
+  mlops_gate:
     name: 05A - MLOps Branch Pass
-    needs: [04a_train_dryrun, 04b_merge_dryrun]
+    needs: [train_dryrun, merge_dryrun]
     runs-on: ubuntu-latest
     steps:
       - run: echo "Trilha de MLOps, Schemas, AST e Treino validada com sucesso!"
 
-  05b_systems_gate:
+  systems_gate:
     name: 05B - Systems Branch Pass
-    needs: [03c_podman_build, 03d_gguf_toolchain]
+    needs: [podman_build, gguf_toolchain]
     runs-on: ubuntu-latest
     steps:
       - run: echo "Trilha de Baixo Nível, Podman, ABI e llama.cpp validada com sucesso!"
@@ -188,9 +188,9 @@ jobs:
   # ==========================================================
   # NÍVEL 6: Convergência Final (Release Ready)
   # ==========================================================
-  06_pipeline_complete:
+  pipeline_complete:
     name: 06 - Master Pipeline Gate
-    needs: [05a_mlops_gate, 05b_systems_gate]
+    needs: [mlops_gate, systems_gate]
     runs-on: ubuntu-latest
     steps:
       - name: Consolidated Report
