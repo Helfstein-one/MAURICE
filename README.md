@@ -50,9 +50,30 @@ maurice/
 ## Quickstart & Usage
 
 ### 1. Dataset Preparation
+
+The dataset preparation pipeline downloads public HuggingFace datasets, applies variant-specific quality filters, and formats records into standard ChatML JSONL schema with `<think>` tags.
+
+#### Sources and Quality Filters
+
+* **Variant `c` (Code):** `iamtarun/python_code_instructions_18k_alpaca` — Validates Python code AST syntax with `validate_code_syntax()`.
+* **Variant `r` (Reasoning):** `openai/gsm8k` — Filters multi-step reasoning chains (`len(steps) >= 2`) with calibrated `<think> ... </think>` tags.
+* **Variant `g` (General):** `HuggingFaceH4/ultrachat_200k` — Excludes short responses (`len(response) < 50`) and injects minimal `<think>\n</think>` tags.
+
+#### Execution Commands
+
+To download and process datasets for all variants:
+
 ```bash
 python3 scripts/01_prepare_datasets.py --variant all
 ```
+
+To prepare a specific variant (e.g., reasoning):
+
+```bash
+python3 scripts/01_prepare_datasets.py --variant r --sample-size 1000
+```
+
+Raw cached datasets are saved to `data/raw/` (`python_code_instructions.jsonl`, `gsm8k_train.jsonl`, `ultrachat_sample.jsonl`) and formatted datasets are saved to `data/processed/` (`train_c.jsonl`, `train_r.jsonl`, `train_g.jsonl`).
 
 ### 2. QLoRA Training
 ```bash

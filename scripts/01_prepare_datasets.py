@@ -31,6 +31,21 @@ SYSTEM_PROMPTS = {
     ),
 }
 
+RAW_FILE_PATHS = {
+    "c": "data/raw/python_code_instructions.jsonl",
+    "r": "data/raw/gsm8k_train.jsonl",
+    "g": "data/raw/ultrachat_sample.jsonl",
+}
+
+
+def load_hf_dataset(name: str, split: str = "train") -> Any:
+    """Loads a HuggingFace dataset split."""
+    from datasets import load_dataset
+
+    if name == "openai/gsm8k":
+        return load_dataset(name, "main", split=split)
+    return load_dataset(name, split=split)
+
 
 def validate_code_syntax(code: str, language: str = "python") -> bool:
     """Validates code syntax using ast for Python and basic pattern checks for C/Rust/Go."""
@@ -146,73 +161,132 @@ def generate_synthetic_samples(variant: str, count: int = 10) -> list[dict[str, 
 
 
 def process_variant(
-    variant: str, output_path: str, sample_size: int = 50, synthetic: bool = True
+    variant: str, output_path: str, sample_size: int = 1000, synthetic: bool = False
 ) -> int:
     """Processes dataset for a specific variant and writes to JSONL file."""
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    raw_path = RAW_FILE_PATHS.get(variant)
+    if raw_path:
+        os.makedirs(os.path.dirname(raw_path), exist_ok=True)
+
     records = []
+    raw_records = []
 
     if synthetic:
         print(f"Generating synthetic records for variant '{variant}'...")
         records = generate_synthetic_samples(variant, count=sample_size)
     else:
         try:
-            from datasets import load_dataset
-
             print(f"Attempting to load HF dataset for variant '{variant}'...")
+            fetch_limit = int(sample_size * 1.5) if sample_size > 0 else 5000
             if variant == "c":
-                ds = load_dataset(
-                    "bigcode/the-stack-smol-xs",
-                    data_dir="data/python",
-                    split=f"train[:{sample_size}]",
+                ds = load_hf_dataset(
+                    "iamtarun/python_code_instructions_18k_alpaca",
+                    split=f"train[:{fetch_limit}]",
                 )
                 sys_prompt = SYSTEM_PROMPTS["c"]
                 for row in ds:
-                    code = row.get("content", "")
-                    if validate_code_syntax(code, "python"):
-                        records.append(
-                            format_chatml_example(
-                                sys_prompt,
-                                "Validate and format the following code module:",
-                                f"<think>\nParsing AST for Python code...\nValid syntax confirmed.\n</think>\n```python\n{code}\n```",
-                            )
+                    if len(records) >= sample_size:
+                        break
+                    instruction = row.get("instruction", "")
+                    inp = row.get("input", "")
+                    output = row.get("output", "")
+
+                    if validate_code_syntax(output, "python"):
+                        raw_records.append(
+                            {
+                                "instruction": instruction,
+                                "input": inp,
+                                "output": output,
+                            }
                         )
+                        user_msg = (
+                            f"{instruction}\n\nInput: {inp}".strip()
+                            if inp
+                            else instruction.strip()
+                        )
+                        assistant_resp = (
+                            f"<think>\nValidating Python AST syntax and logic...\n</think>\n{output}".strip()
+                        )
+                        records.append(
+                            format_chatml_example(sys_prompt, user_msg, assistant_resp)
+                        )
+
             elif variant == "r":
-                ds = load_dataset(
-                    "HuggingFaceH4/Bespoke-Stratos-17k",
-                    split=f"train[:{sample_size}]",
+                ds = load_hf_dataset(
+                    "openai/gsm8k",
+                    split=f"train[:{fetch_limit}]",
                 )
                 sys_prompt = SYSTEM_PROMPTS["r"]
                 for row in ds:
-                    conversations = row.get("conversations", [])
-                    if conversations:
-                        user_val = conversations[0].get("value", "")
-                        assistant_val = (
-                            conversations[1].get("value", "")
-                            if len(conversations) > 1
-                            else ""
+                    if len(records) >= sample_size:
+                        break
+                    question = row.get("question", "")
+                    answer = row.get("answer", "")
+
+                    parts = answer.split("####")
+                    reasoning_part = parts[0].strip()
+                    final_ans = parts[1].strip() if len(parts) > 1 else ""
+                    steps = [
+                        line.strip()
+                        for line in reasoning_part.split("\n")
+                        if line.strip()
+                    ]
+
+                    # Filter: multi-step reasoning (len(steps) >= 2)
+                    if len(steps) >= 2:
+                        raw_records.append({"question": question, "answer": answer})
+                        assistant_resp = (
+                            "<think>\n"
+                            + "\n".join(steps)
+                            + f"\n</think>\nThe final answer is {final_ans}."
                         )
                         records.append(
-                            format_chatml_example(sys_prompt, user_val, assistant_val)
+                            format_chatml_example(sys_prompt, question, assistant_resp)
                         )
+
             elif variant == "g":
-                ds = load_dataset(
-                    "teknium/OpenHermes-2.5", split=f"train[:{sample_size}]"
+                ds = load_hf_dataset(
+                    "HuggingFaceH4/ultrachat_200k",
+                    split=f"train_sft[:{fetch_limit}]",
                 )
                 sys_prompt = SYSTEM_PROMPTS["g"]
                 for row in ds:
-                    instruction = row.get("instruction", "")
-                    output = row.get("output", "")
-                    if not output.startswith("<think>"):
-                        output = f"<think>\n</think>\n{output}"
-                    records.append(
-                        format_chatml_example(sys_prompt, instruction, output)
-                    )
+                    if len(records) >= sample_size:
+                        break
+                    messages = row.get("messages", [])
+                    if len(messages) >= 2:
+                        user_msg = messages[0].get("content", "")
+                        resp_msg = messages[1].get("content", "")
+
+                        # Filter: exclude responses shorter than 50 chars
+                        if len(resp_msg) >= 50:
+                            raw_records.append(
+                                {"prompt": user_msg, "response": resp_msg}
+                            )
+                            if not resp_msg.startswith("<think>"):
+                                assistant_resp = f"<think>\n</think>\n{resp_msg}"
+                            else:
+                                assistant_resp = resp_msg
+                            records.append(
+                                format_chatml_example(
+                                    sys_prompt, user_msg, assistant_resp
+                                )
+                            )
+
         except Exception as e:  # noqa: BLE001
             print(
                 f"Warning: Failed to load HF dataset ({e}). Falling back to synthetic sample generation."
             )
             records = generate_synthetic_samples(variant, count=sample_size)
+
+    # Save raw records if cached from HF dataset
+    if raw_records and raw_path:
+        with open(raw_path, "w", encoding="utf-8") as f:
+            f.writelines(
+                json.dumps(r, ensure_ascii=False) + "\n" for r in raw_records
+            )
+        print(f"Successfully wrote {len(raw_records)} raw records to {raw_path}")
 
     valid_records = []
     for record in records:
@@ -238,7 +312,9 @@ def process_variant(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="MAURICE Dataset Preparation Pipeline")
+    parser = argparse.ArgumentParser(
+        description="MAURICE Dataset Preparation Pipeline"
+    )
     parser.add_argument(
         "--variant",
         choices=["c", "r", "g", "all"],
@@ -246,12 +322,12 @@ def main():
         help="Target model variant",
     )
     parser.add_argument(
-        "--sample-size", type=int, default=50, help="Number of samples to process"
+        "--sample-size", type=int, default=1000, help="Number of samples to process"
     )
     parser.add_argument(
         "--synthetic",
         action="store_true",
-        default=True,
+        default=False,
         help="Use synthetic sample generator",
     )
     parser.add_argument(
