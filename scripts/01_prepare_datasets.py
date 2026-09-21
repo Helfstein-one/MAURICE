@@ -260,8 +260,17 @@ def main():
         dest="synthetic",
         help="Use real HuggingFace datasets",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Perform dry run without heavy dataset download",
+    )
 
     args = parser.parse_args()
+    if args.dry_run:
+        args.sample_size = min(args.sample_size, 5)
+        args.synthetic = True
+
     variants = ["c", "r", "g"] if args.variant == "all" else [args.variant]
 
     total_prepared = 0

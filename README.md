@@ -1,5 +1,7 @@
 # MAURICE Framework
 
+[![CI](https://github.com/maurice/maurice/actions/workflows/ci.yml/badge.svg)](https://github.com/maurice/maurice/actions/workflows/ci.yml)
+
 **Minimal Adaptation for Ultra-fast Reasoning and Inference in Code Engines**
 
 MAURICE is an end-to-end pipeline for automated training, post-training alignment, quantization, and local runtime delivery of specialized 1.5B parameter language models based on `deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B`.

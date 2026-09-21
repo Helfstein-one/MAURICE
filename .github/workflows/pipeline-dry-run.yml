@@ -1,0 +1,23 @@
+name: Pipeline Dry Run
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/**'
+      - 'configs/**'
+      - 'Makefile'
+
+jobs:
+  dry-run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install poetry && poetry install
+      - run: python scripts/01_prepare_datasets.py --variant all --dry-run
+      - run: python scripts/02_train_qlora.py --variant c --dry-run
+      - run: python scripts/03_merge_weights.py --variant c --dry-run
+      - run: bash scripts/04_quantize_imatrix.sh c
+      - run: python scripts/05_benchmark_eval.py --variant all --dry-run
