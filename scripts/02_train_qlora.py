@@ -89,16 +89,35 @@ def run_training(
 
     try:
         import torch
-        from transformers import AutoTokenizer
+        from datasets import load_dataset
+        from transformers import AutoTokenizer, TrainingArguments
+
+        training_args = TrainingArguments(
+            output_dir=output_dir,
+            per_device_train_batch_size=config.get("training", {}).get(
+                "per_device_train_batch_size", 2
+            ),
+            gradient_accumulation_steps=config.get("training", {}).get(
+                "gradient_accumulation_steps", 4
+            ),
+            warmup_steps=config.get("training", {}).get("warmup_steps", 5),
+            max_steps=config.get("training", {}).get("max_steps", 60),
+            learning_rate=config.get("training", {}).get("learning_rate", 2e-4),
+            fp16=not (torch.cuda.is_available() and torch.cuda.is_bf16_supported()),
+            bf16=torch.cuda.is_available() and torch.cuda.is_bf16_supported(),
+            logging_steps=1,
+            optim=config.get("training", {}).get("optimizer", "adamw_8bit"),
+        )
 
         try:
+            from trl import SFTTrainer
             from unsloth import FastLanguageModel
 
             print("Using Unsloth FastLanguageModel optimization path.")
             model, tokenizer = FastLanguageModel.from_pretrained(
                 model_name=base_model,
                 max_seq_length=config.get("max_seq_length", 4096),
-                load_in_4bit=config["training"].get("load_in_4bit", True),
+                load_in_4bit=config.get("training", {}).get("load_in_4bit", True),
                 dtype=None,
             )
             model = FastLanguageModel.get_peft_model(
@@ -111,17 +130,30 @@ def run_training(
                 use_gradient_checkpointing="unsloth",
                 random_state=3407,
             )
+
+            train_ds = load_dataset("json", data_files=dataset_file, split="train")
+            trainer = SFTTrainer(
+                model=model,
+                tokenizer=tokenizer,
+                train_dataset=train_ds,
+                dataset_text_field="text",
+                max_seq_length=config.get("max_seq_length", 4096),
+                packing=False,
+                args=training_args,
+            )
+            trainer.train()
+
         except ImportError:
             print(
-                "Unsloth not detected. Falling back to standard Hugging Face PEFT/bitsandbytes."
+                "Unsloth not detected or unavailable. Falling back to standard Hugging Face PEFT/bitsandbytes."
             )
             from peft import LoraConfig, get_peft_model
-            from transformers import AutoModelForCausalLM
+            from transformers import AutoModelForCausalLM, Trainer
 
             tokenizer = AutoTokenizer.from_pretrained(base_model)
             model = AutoModelForCausalLM.from_pretrained(
                 base_model,
-                load_in_4bit=config["training"].get("load_in_4bit", True),
+                load_in_4bit=config.get("training", {}).get("load_in_4bit", True),
                 device_map="auto" if torch.cuda.is_available() else None,
             )
             peft_config = LoraConfig(
@@ -133,6 +165,15 @@ def run_training(
                 task_type="CAUSAL_LM",
             )
             model = get_peft_model(model, peft_config)
+            train_ds = load_dataset("json", data_files=dataset_file, split="train")
+
+            trainer = Trainer(
+                model=model,
+                tokenizer=tokenizer,
+                train_dataset=train_ds,
+                args=training_args,
+            )
+            trainer.train()
 
         model.save_pretrained(output_dir)
         tokenizer.save_pretrained(output_dir)
@@ -148,6 +189,7 @@ def run_training(
             "lora_config": config["lora"],
             "status": "trained_fallback",
             "peft_type": "LORA",
+            "target_modules": config["lora"]["target_modules"],
         }
         with open(
             os.path.join(output_dir, "adapter_config.json"), "w", encoding="utf-8"

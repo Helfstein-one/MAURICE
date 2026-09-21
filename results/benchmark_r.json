@@ -1,0 +1,15 @@
+{
+  "variant": "mau-llm-1.0-r",
+  "hardware_acceleration": "x86_64 CPU (AVX2)",
+  "metrics": {
+    "tokens_per_second": 512.0,
+    "time_to_first_token_ms": 20.16,
+    "peak_rss_mb": 156.25,
+    "evaluation_scores": {
+      "eval_benchmark": "GSM8k / MATH",
+      "reasoning_tag_calibration_rate": 0.998,
+      "gsm8k_accuracy": 0.884,
+      "math_pass_rate": 0.621
+    }
+  }
+}

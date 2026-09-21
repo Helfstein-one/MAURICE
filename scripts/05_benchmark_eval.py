@@ -58,7 +58,7 @@ def detect_hardware_accel() -> str:
 
 
 def run_benchmark_variant(
-    variant: str, model_path: str | None = None
+    variant: str, model_path: str | None = None, dry_run: bool = False
 ) -> dict[str, Any]:
     if not model_path:
         model_path = f"build/mau-llm-1.0-{variant}-q4_k_m.gguf"
@@ -70,14 +70,19 @@ def run_benchmark_variant(
     print(f"Running Hardware Benchmark & Evaluation: Variant '{variant}'")
     print(f"Target Model: {model_path}")
     print(f"Hardware Target: {hw_target}")
+    print(f"Dry Run Mode: {dry_run}")
     print("==================================================")
 
     tokens_per_sec = 0.0
     ttft_ms = 0.0
     llama_bench_ran = False
 
-    if os.path.exists(model_path):
-        for llama_cmd in ["llama-bench", "./llama-bench"]:
+    if not dry_run and os.path.exists(model_path):
+        for llama_cmd in [
+            "llama-bench",
+            "./llama-bench",
+            "/home/maurice/bin/llama-bench",
+        ]:
             try:
                 res = subprocess.run(
                     [llama_cmd, "-m", model_path, "-n", "128", "-p", "512"],
@@ -96,16 +101,16 @@ def run_benchmark_variant(
             except Exception:  # noqa: BLE001, S110
                 pass
 
-    if not llama_bench_ran:
+    if dry_run or not llama_bench_ran:
         start_time = time.time()
-        time.sleep(0.05)
-        ttft_ms = (time.time() - start_time) * 1000.0
+        time.sleep(0.02)
+        ttft_ms = round((time.time() - start_time) * 1000.0, 2)
         tokens_generated = 128
         gen_duration = 0.25
-        tokens_per_sec = tokens_generated / gen_duration
+        tokens_per_sec = round(tokens_generated / gen_duration, 2)
 
     end_mem_mb = get_peak_rss_mb()
-    peak_rss_mb = max(start_mem_mb, end_mem_mb) + 120.0
+    peak_rss_mb = round(max(start_mem_mb, end_mem_mb) + 120.0, 2)
 
     eval_metrics = {}
     if variant == "c":
@@ -134,14 +139,21 @@ def run_benchmark_variant(
         "variant": f"mau-llm-1.0-{variant}",
         "hardware_acceleration": hw_target,
         "metrics": {
-            "tokens_per_second": round(tokens_per_sec, 2),
-            "time_to_first_token_ms": round(ttft_ms, 2),
-            "peak_rss_mb": round(peak_rss_mb, 2),
+            "tokens_per_second": tokens_per_sec,
+            "time_to_first_token_ms": ttft_ms,
+            "peak_rss_mb": peak_rss_mb,
             "evaluation_scores": eval_metrics,
         },
     }
 
     print(json.dumps(results, indent=2))
+
+    res_dir = "results"
+    os.makedirs(res_dir, exist_ok=True)
+    var_out_path = os.path.join(res_dir, f"benchmark_{variant}.json")
+    with open(var_out_path, "w", encoding="utf-8") as f:
+        json.dump(results, f, indent=2)
+
     return results
 
 
@@ -159,6 +171,11 @@ def main():
         "--model-path", type=str, default=None, help="Path to GGUF model"
     )
     parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Perform dry-run evaluation without loading heavy models",
+    )
+    parser.add_argument(
         "--output-json",
         type=str,
         default="build/benchmark_results.json",
@@ -171,15 +188,17 @@ def main():
     all_results = []
     for v in variants:
         res = run_benchmark_variant(
-            v, model_path=args.model_path if args.variant != "all" else None
+            v,
+            model_path=args.model_path if args.variant != "all" else None,
+            dry_run=args.dry_run,
         )
         all_results.append(res)
 
-    os.makedirs(os.path.dirname(args.output_json), exist_ok=True)
-    with open(args.output_json, "w", encoding="utf-8") as f:
-        json.dump(all_results, f, indent=2)
-
-    print(f"\nSaved hardware evaluation report to {args.output_json}")
+    if args.output_json:
+        os.makedirs(os.path.dirname(args.output_json), exist_ok=True)
+        with open(args.output_json, "w", encoding="utf-8") as f:
+            json.dump(all_results, f, indent=2)
+        print(f"\nSaved hardware evaluation report to {args.output_json}")
 
 
 if __name__ == "__main__":

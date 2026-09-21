@@ -45,6 +45,16 @@ def merge_weights(
         }
         with open(os.path.join(output_dir, "config.json"), "w", encoding="utf-8") as f:
             json.dump(merged_meta, f, indent=2)
+        tok_cfg = {
+            "tokenizer_class": "Qwen2Tokenizer",
+            "bos_token": "<|im_start|>",
+            "eos_token": "<|im_end|>",
+            "chat_template": "ChatML",
+        }
+        with open(
+            os.path.join(output_dir, "tokenizer_config.json"), "w", encoding="utf-8"
+        ) as f:
+            json.dump(tok_cfg, f, indent=2)
         with open(
             os.path.join(output_dir, "model.safetensors"), "w", encoding="utf-8"
         ) as f:
@@ -73,11 +83,12 @@ def merge_weights(
             )
             from peft import PeftModel
 
-            with open(os.path.join(adapter_path, "adapter_config.json"), "r") as f:
-                adapter_cfg = json.load(f)
-            base_model_name = adapter_cfg.get(
-                "base_model", "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
-            )
+            adapter_cfg_file = os.path.join(adapter_path, "adapter_config.json")
+            base_model_name = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
+            if os.path.exists(adapter_cfg_file):
+                with open(adapter_cfg_file, "r", encoding="utf-8") as f:
+                    adapter_cfg = json.load(f)
+                base_model_name = adapter_cfg.get("base_model", base_model_name)
 
             base_model = AutoModelForCausalLM.from_pretrained(
                 base_model_name, torch_dtype=torch.float16, device_map="cpu"
@@ -102,6 +113,16 @@ def merge_weights(
         }
         with open(os.path.join(output_dir, "config.json"), "w", encoding="utf-8") as f:
             json.dump(merged_meta, f, indent=2)
+        tok_cfg = {
+            "tokenizer_class": "Qwen2Tokenizer",
+            "bos_token": "<|im_start|>",
+            "eos_token": "<|im_end|>",
+            "chat_template": "ChatML",
+        }
+        with open(
+            os.path.join(output_dir, "tokenizer_config.json"), "w", encoding="utf-8"
+        ) as f:
+            json.dump(tok_cfg, f, indent=2)
         with open(
             os.path.join(output_dir, "model.safetensors"), "w", encoding="utf-8"
         ) as f:

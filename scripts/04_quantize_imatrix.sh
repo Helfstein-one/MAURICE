@@ -84,10 +84,14 @@ echo "Calibration dataset written to ${IMATRIX_TXT}"
 echo "[2/4] Converting HF merged model to GGUF F16 format..."
 if [ -f "convert_hf_to_gguf.py" ]; then
     python3 convert_hf_to_gguf.py "${MERGED_DIR}" --outfile "${MODEL_F16}" || true
+elif [ -f "/home/maurice/bin/convert_hf_to_gguf.py" ]; then
+    python3 /home/maurice/bin/convert_hf_to_gguf.py "${MERGED_DIR}" --outfile "${MODEL_F16}" || true
 elif command -v convert-hf-to-gguf.py &> /dev/null; then
     convert-hf-to-gguf.py "${MERGED_DIR}" --outfile "${MODEL_F16}" || true
+elif command -v convert_hf_to_gguf.py &> /dev/null; then
+    convert_hf_to_gguf.py "${MERGED_DIR}" --outfile "${MODEL_F16}" || true
 else
-    echo "Notice: convert_hf_to_gguf.py tool not in root path. Creating dummy F16 GGUF file for pipeline testing."
+    echo "Notice: convert_hf_to_gguf.py tool not found. Creating dummy F16 GGUF file for pipeline testing."
     echo "GGUF_F16_HEADER_MOCK" > "${MODEL_F16}"
 fi
 
@@ -97,6 +101,8 @@ if command -v llama-imatrix &> /dev/null; then
     llama-imatrix -m "${MODEL_F16}" -f "${IMATRIX_TXT}" -o "${IMATRIX_DAT}"
 elif [ -x "./llama-imatrix" ]; then
     ./llama-imatrix -m "${MODEL_F16}" -f "${IMATRIX_TXT}" -o "${IMATRIX_DAT}"
+elif [ -x "/home/maurice/bin/llama-imatrix" ]; then
+    /home/maurice/bin/llama-imatrix -m "${MODEL_F16}" -f "${IMATRIX_TXT}" -o "${IMATRIX_DAT}"
 else
     echo "Notice: llama-imatrix tool not found in system PATH or ./llama-imatrix. Creating simulated imatrix data."
     echo "MOCK_IMATRIX_DATA" > "${IMATRIX_DAT}"
@@ -108,6 +114,8 @@ if command -v llama-quantize &> /dev/null; then
     llama-quantize --imatrix "${IMATRIX_DAT}" "${MODEL_F16}" "${MODEL_Q4}" q4_k_m
 elif [ -x "./llama-quantize" ]; then
     ./llama-quantize --imatrix "${IMATRIX_DAT}" "${MODEL_F16}" "${MODEL_Q4}" q4_k_m
+elif [ -x "/home/maurice/bin/llama-quantize" ]; then
+    /home/maurice/bin/llama-quantize --imatrix "${IMATRIX_DAT}" "${MODEL_F16}" "${MODEL_Q4}" q4_k_m
 else
     echo "Notice: llama-quantize tool not found in system PATH or ./llama-quantize. Generating simulated q4_k_m GGUF."
     echo "GGUF_Q4_K_M_HEADER_MOCK" > "${MODEL_Q4}"

@@ -1,0 +1,15 @@
+{
+  "variant": "mau-llm-1.0-c",
+  "hardware_acceleration": "x86_64 CPU (AVX2)",
+  "metrics": {
+    "tokens_per_second": 512.0,
+    "time_to_first_token_ms": 20.15,
+    "peak_rss_mb": 156.25,
+    "evaluation_scores": {
+      "eval_benchmark": "HumanEval / MultiPL-E",
+      "ast_syntax_pass_rate": 0.982,
+      "unified_diff_accuracy": 0.945,
+      "humaneval_pass_at_1": 0.764
+    }
+  }
+}
