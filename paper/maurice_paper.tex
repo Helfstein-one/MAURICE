@@ -1,0 +1,28 @@
+\documentclass[10pt,twocolumn,letterpaper]{article}
+
+\title{MAURICE: Minimal Adaptation for Ultra-fast Reasoning and Inference in Code Engines}
+\author{Maurício Helfstein Gonçalves}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We introduce MAURICE, an ultra-efficient automated fine-tuning, post-training alignment, quantization, and runtime delivery pipeline for specialized small language models based on DeepSeek-R1-Distill-Qwen-1.5B. Through 4-bit QLoRA adaptation and imatrix-calibrated GGUF quantization, MAURICE achieves low-latency local execution across edge CPU and Metal architectures while preserving reasoning and code generation capabilities.
+\end{abstract}
+
+\section{Introduction}
+Modern code intelligence and logical reasoning systems face latency constraints when deployed on local developer workstations. The MAURICE pipeline addresses this challenge by modularizing task specializations into three targeted model variants:
+\begin{itemize}
+    \item \textbf{mau-llm-1.0-c:} Code generation, AST validation, and unified diff refactoring engine.
+    \item \textbf{mau-llm-1.0-r:} Calibrated chain-of-thought reasoning engine preserving \texttt{<think>...</think>} blocks.
+    \item \textbf{mau-llm-1.0-g:} General-purpose assistant with adaptive thinking suppression.
+\end{itemize}
+
+\section{System Architecture \& Pipeline}
+The architecture spans automated dataset preparation with syntax filtering, Unsloth-accelerated QLoRA training across projection layers ($r=16, \alpha=16$), 16-bit model weight merging, and \texttt{llama.cpp} importance-matrix (\texttt{q4\_k\_m}) quantization.
+
+\section{Evaluation \& Results}
+Benchmarking demonstrates substantial throughput optimization on x86 AVX2/AVX-512 and macOS Metal MPS while maintaining high pass rates on HumanEval, GSM8k, and MT-Bench.
+
+\end{document}

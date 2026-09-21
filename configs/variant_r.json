@@ -1,0 +1,34 @@
+{
+  "variant": "r",
+  "name": "mau-llm-1.0-r",
+  "description": "Pure Reasoning & Logic preserving and calibrating DeepSeek-R1 chain-of-thought tokens (<think>...</think>).",
+  "base_model": "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B",
+  "max_seq_length": 4096,
+  "lora": {
+    "r": 16,
+    "lora_alpha": 16,
+    "lora_dropout": 0.0,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ]
+  },
+  "training": {
+    "load_in_4bit": true,
+    "optimizer": "adamw_8bit",
+    "learning_rate": 0.0002,
+    "num_train_epochs": 3,
+    "per_device_train_batch_size": 2,
+    "gradient_accumulation_steps": 4,
+    "warmup_steps": 10
+  },
+  "datasets": {
+    "hf_source": "HuggingFaceH4/Bespoke-Stratos-17k",
+    "processed_file": "data/processed/train_r.jsonl"
+  }
+}
