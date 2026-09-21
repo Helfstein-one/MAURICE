@@ -15,7 +15,7 @@ jobs:
   # ==========================================================
   # NÍVEL 1: Análise Estática e Qualidade (Trava imediata)
   # ==========================================================
-  01-code-quality:
+  code_quality:
     name: 01 - Code Quality & Lint
     runs-on: ubuntu-latest
     steps:
@@ -41,9 +41,9 @@ jobs:
   # ==========================================================
   # NÍVEL 2: Testes Unitários de Schema e Parsing
   # ==========================================================
-  02-unit-tests:
+  unit_tests:
     name: 02 - Unit & Schema Tests
-    needs: 01-code-quality
+    needs: code_quality
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -67,9 +67,9 @@ jobs:
   # ==========================================================
   # NÍVEL 3: Build Podman & Validação do Runtime Nativo C++
   # ==========================================================
-  03-container-build:
+  container_build:
     name: 03 - Podman Build & llama-cli Execution
-    needs: 02-unit-tests
+    needs: unit_tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -91,9 +91,9 @@ jobs:
   # ==========================================================
   # NÍVEL 4: Dry-Run do Pipeline de Modelos
   # ==========================================================
-  04-model-dryrun:
+  model_dryrun:
     name: 04 - Pipeline Scripts Dry-Run (c, r, g)
-    needs: 03-container-build
+    needs: container_build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
