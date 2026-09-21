@@ -26,7 +26,7 @@ eval:
 	$(PYTHON) scripts/05_benchmark_eval.py --variant all
 
 test:
-	$(PYTHON) -m pytest tests/
+	pytest tests/ -v
 
 clean:
 	rm -rf data/processed/* checkpoints/* build/*
