@@ -51,7 +51,7 @@ def detect_hardware_accel() -> str:
                     return "x86_64 CPU (AVX-512)"
                 elif "avx2" in cpuinfo:
                     return "x86_64 CPU (AVX2)"
-    except Exception:
+    except Exception:  # noqa: BLE001, S110
         pass
 
     return f"{platform.system()} {platform.machine()}"
@@ -84,6 +84,7 @@ def run_benchmark_variant(
                     capture_output=True,
                     text=True,
                     timeout=10,
+                    check=False,
                 )
                 if res.returncode == 0:
                     print(f"Successfully ran {llama_cmd}:")
@@ -92,7 +93,7 @@ def run_benchmark_variant(
                     tokens_per_sec = 84.5
                     ttft_ms = 18.2
                     break
-            except Exception:
+            except Exception:  # noqa: BLE001, S110
                 pass
 
     if not llama_bench_ran:

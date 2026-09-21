@@ -15,9 +15,20 @@ import os
 from typing import Any
 
 SYSTEM_PROMPTS = {
-    "c": "You are mau-llm-1.0-c, an expert code and refactoring engine. Provide clean, syntactically verified code, unified diff patches, and structural refactoring instructions.",
-    "r": "You are mau-llm-1.0-r, a pure reasoning engine. Think carefully before answering by placing your step-by-step reasoning process inside <think>...</think> tags.",
-    "g": "You are mau-llm-1.0-g, a versatile general-purpose assistant. Provide concise and accurate responses, using minimal thinking when appropriate.",
+    "c": (
+        "You are mau-llm-1.0-c, an expert code and refactoring engine. "
+        "Provide clean, syntactically verified code, unified diff patches, "
+        "and structural refactoring instructions."
+    ),
+    "r": (
+        "You are mau-llm-1.0-r, a pure reasoning engine. "
+        "Think carefully before answering by placing your step-by-step "
+        "reasoning process inside <think>...</think> tags."
+    ),
+    "g": (
+        "You are mau-llm-1.0-g, a versatile general-purpose assistant. "
+        "Provide concise and accurate responses, using minimal thinking when appropriate."
+    ),
 }
 
 
@@ -31,10 +42,9 @@ def validate_code_syntax(code: str, language: str = "python") -> bool:
         try:
             ast.parse(code)
             return True
-        except Exception:
+        except SyntaxError:
             return False
     elif language in ["c", "cpp", "c++", "rust", "go"]:
-        # Check basic structure: balanced braces and parens
         brace_count = 0
         paren_count = 0
         for char in code:
@@ -65,7 +75,9 @@ def format_chatml_example(
     }
 
 
-def generate_synthetic_samples(variant: str, count: int = 10) -> list[dict[str, Any]]:
+def generate_synthetic_samples(
+    variant: str, count: int = 10
+) -> list[dict[str, Any]]:
     """Generates valid synthetic samples for testing and dry runs."""
     samples = []
     sys_prompt = SYSTEM_PROMPTS[variant]
@@ -87,7 +99,11 @@ def generate_synthetic_samples(variant: str, count: int = 10) -> list[dict[str, 
                 "+    return math.factorial(n)\n"
                 "```"
             )
-            resp = f"<think>\nAnalyzing factorial recursive call vs math.factorial binding in C-extension.\nReplacing recursion with standard math library for efficiency.\n</think>\nHere is the refactored unified diff:\n\n{code_diff}"
+            resp = (
+                "<think>\nAnalyzing factorial recursive call vs math.factorial binding in C-extension.\n"
+                "Replacing recursion with standard math library for efficiency.\n</think>\n"
+                f"Here is the refactored unified diff:\n\n{code_diff}"
+            )
             samples.append(format_chatml_example(sys_prompt, user_msg, resp))
 
     elif variant == "r":
@@ -131,7 +147,6 @@ def process_variant(
         print(f"Generating synthetic records for variant '{variant}'...")
         records = generate_synthetic_samples(variant, count=sample_size)
     else:
-        # Online HF datasets fallback
         try:
             from datasets import load_dataset
 
@@ -155,7 +170,8 @@ def process_variant(
                         )
             elif variant == "r":
                 ds = load_dataset(
-                    "HuggingFaceH4/Bespoke-Stratos-17k", split=f"train[:{sample_size}]"
+                    "HuggingFaceH4/Bespoke-Stratos-17k",
+                    split=f"train[:{sample_size}]",
                 )
                 sys_prompt = SYSTEM_PROMPTS["r"]
                 for row in ds:
@@ -168,7 +184,9 @@ def process_variant(
                             else ""
                         )
                         records.append(
-                            format_chatml_example(sys_prompt, user_val, assistant_val)
+                            format_chatml_example(
+                                sys_prompt, user_val, assistant_val
+                            )
                         )
             elif variant == "g":
                 ds = load_dataset(
@@ -183,13 +201,12 @@ def process_variant(
                     records.append(
                         format_chatml_example(sys_prompt, instruction, output)
                     )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             print(
                 f"Warning: Failed to load HF dataset ({e}). Falling back to synthetic sample generation."
             )
             records = generate_synthetic_samples(variant, count=sample_size)
 
-    # Validate syntax & schema for all generated records
     valid_records = []
     for record in records:
         msgs = record.get("messages", [])
@@ -202,16 +219,16 @@ def process_variant(
             valid_records.append(record)
 
     with open(output_path, "w", encoding="utf-8") as f:
-        f.writelines(
-            json.dumps(rec, ensure_ascii=False) + "\n" for rec in valid_records
-        )
+        f.writelines(json.dumps(rec, ensure_ascii=False) + "\n" for rec in valid_records)
 
     print(f"Successfully wrote {len(valid_records)} records to {output_path}")
     return len(valid_records)
 
 
 def main():
-    parser = argparse.ArgumentParser(description="MAURICE Dataset Preparation Pipeline")
+    parser = argparse.ArgumentParser(
+        description="MAURICE Dataset Preparation Pipeline"
+    )
     parser.add_argument(
         "--variant",
         choices=["c", "r", "g", "all"],
@@ -245,9 +262,7 @@ def main():
         )
         total_prepared += count
 
-    print(
-        f"Pipeline complete. Total records prepared across variants: {total_prepared}"
-    )
+    print(f"Pipeline complete. Total records prepared across variants: {total_prepared}")
 
 
 if __name__ == "__main__":

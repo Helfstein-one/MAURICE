@@ -29,6 +29,7 @@ class TestMauricePipeline(unittest.TestCase):
             ],
             capture_output=True,
             text=True,
+            check=False,
         )
         self.assertEqual(res.returncode, 0, f"Error: {res.stderr}")
         for v in ["c", "r", "g"]:
@@ -41,9 +42,16 @@ class TestMauricePipeline(unittest.TestCase):
     def test_train_qlora_dry_run(self):
         for v in ["c", "r", "g"]:
             res = subprocess.run(
-                ["python3", "scripts/02_train_qlora.py", "--variant", v, "--dry-run"],
+                [
+                    "python3",
+                    "scripts/02_train_qlora.py",
+                    "--variant",
+                    v,
+                    "--dry-run",
+                ],
                 capture_output=True,
                 text=True,
+                check=False,
             )
             self.assertEqual(res.returncode, 0, f"Error: {res.stderr}")
             self.assertTrue(
@@ -53,12 +61,21 @@ class TestMauricePipeline(unittest.TestCase):
     def test_merge_weights_dry_run(self):
         for v in ["c", "r", "g"]:
             res = subprocess.run(
-                ["python3", "scripts/03_merge_weights.py", "--variant", v, "--dry-run"],
+                [
+                    "python3",
+                    "scripts/03_merge_weights.py",
+                    "--variant",
+                    v,
+                    "--dry-run",
+                ],
                 capture_output=True,
                 text=True,
+                check=False,
             )
             self.assertEqual(res.returncode, 0, f"Error: {res.stderr}")
-            self.assertTrue(os.path.exists(f"checkpoints/merged_{v}/config.json"))
+            self.assertTrue(
+                os.path.exists(f"checkpoints/merged_{v}/config.json")
+            )
 
     def test_quantize_imatrix(self):
         for v in ["c", "r", "g"]:
@@ -66,15 +83,19 @@ class TestMauricePipeline(unittest.TestCase):
                 ["bash", "scripts/04_quantize_imatrix.sh", v],
                 capture_output=True,
                 text=True,
+                check=False,
             )
             self.assertEqual(res.returncode, 0, f"Error: {res.stderr}")
-            self.assertTrue(os.path.exists(f"build/mau-llm-1.0-{v}-q4_k_m.gguf"))
+            self.assertTrue(
+                os.path.exists(f"build/mau-llm-1.0-{v}-q4_k_m.gguf")
+            )
 
     def test_benchmark_eval(self):
         res = subprocess.run(
             ["python3", "scripts/05_benchmark_eval.py", "--variant", "all"],
             capture_output=True,
             text=True,
+            check=False,
         )
         self.assertEqual(res.returncode, 0, f"Error: {res.stderr}")
         self.assertTrue(os.path.exists("build/benchmark_results.json"))

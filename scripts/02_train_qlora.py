@@ -19,7 +19,9 @@ import os
 from typing import Any
 
 
-def load_variant_config(variant: str, config_dir: str = "configs") -> dict[str, Any]:
+def load_variant_config(
+    variant: str, config_dir: str = "configs"
+) -> dict[str, Any]:
     config_file = os.path.join(config_dir, f"variant_{variant}.json")
     if not os.path.exists(config_file):
         raise FileNotFoundError(
@@ -42,7 +44,9 @@ def run_training(
         config = load_variant_config(variant)
 
     variant_name = config.get("name", f"mau-llm-1.0-{variant}")
-    base_model = config.get("base_model", "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B")
+    base_model = config.get(
+        "base_model", "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
+    )
     dataset_file = config.get("datasets", {}).get(
         "processed_file", f"data/processed/train_{variant}.jsonl"
     )
@@ -87,12 +91,10 @@ def run_training(
         print(f"[Dry-Run Mode] Saved mock adapter weights to {output_dir}")
         return
 
-    # Real training attempt using Unsloth or Hugging Face PEFT/TRL
     try:
         import torch
         from transformers import AutoTokenizer
 
-        # Check if unsloth is installed
         try:
             from unsloth import FastLanguageModel
 
@@ -136,12 +138,11 @@ def run_training(
             )
             model = get_peft_model(model, peft_config)
 
-        # Save adapter checkpoint
         model.save_pretrained(output_dir)
         tokenizer.save_pretrained(output_dir)
         print(f"Training complete. Adapter saved to {output_dir}")
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(
             f"Error encountered during GPU training setup ({e}). Falling back to dry-run mode for pipeline verification."
         )
@@ -164,7 +165,9 @@ def run_training(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="MAURICE Parameterized QLoRA Trainer")
+    parser = argparse.ArgumentParser(
+        description="MAURICE Parameterized QLoRA Trainer"
+    )
     parser.add_argument(
         "--variant",
         choices=["c", "r", "g"],
@@ -175,7 +178,9 @@ def main():
         "--config", type=str, default=None, help="Path to custom JSON config"
     )
     parser.add_argument(
-        "--dry-run", action="store_true", help="Perform dry run without heavy compute"
+        "--dry-run",
+        action="store_true",
+        help="Perform dry run without heavy compute",
     )
     parser.add_argument(
         "--output-dir",
