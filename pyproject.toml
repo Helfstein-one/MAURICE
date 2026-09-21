@@ -8,6 +8,7 @@ version = "1.0.0"
 description = "Minimal Adaptation for Ultra-fast Reasoning and Inference in Code Engines"
 authors = ["Maurício Helfstein Gonçalves"]
 readme = "README.md"
+package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.10"
