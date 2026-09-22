@@ -12,6 +12,8 @@ import argparse
 import ast
 import json
 import os
+import subprocess
+import tempfile
 from typing import Any
 
 SYSTEM_PROMPTS = {
@@ -38,8 +40,73 @@ HF_DATASETS = {
 }
 
 
+def _brace_balance_check(code: str) -> bool:
+    """Checks brace, parenthesis, and bracket balancing in code."""
+    brace = paren = bracket = 0
+    for ch in code:
+        match ch:
+            case "{":
+                brace += 1
+            case "}":
+                brace -= 1
+            case "(":
+                paren += 1
+            case ")":
+                paren -= 1
+            case "[":
+                bracket += 1
+            case "]":
+                bracket -= 1
+        if brace < 0 or paren < 0 or bracket < 0:
+            return False
+    return brace == 0 and paren == 0 and bracket == 0
+
+
+def validate_js_ts_syntax(code: str, language: str = "javascript") -> bool:
+    """Validates JavaScript/TypeScript syntax using node --check or falls back to brace balancing."""
+    is_ts = language.lower() in ["typescript", "ts"]
+    ext = ".ts" if is_ts else ".js"
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            suffix=ext, mode="w", delete=False, encoding="utf-8"
+        ) as f:
+            f.write(code)
+            tmp_path = f.name
+
+        cmd = (
+            ["node", "--experimental-strip-types", tmp_path]
+            if is_ts
+            else ["node", "--check", tmp_path]
+        )
+        result = subprocess.run(cmd, capture_output=True, timeout=5, check=False)
+        if result.returncode == 0:
+            return True
+
+        if is_ts:
+            res_check = subprocess.run(
+                ["node", "--check", tmp_path],
+                capture_output=True,
+                timeout=5,
+                check=False,
+            )
+            if res_check.returncode == 0:
+                return True
+            return _brace_balance_check(code)
+
+        return False
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return _brace_balance_check(code)
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+
+
 def validate_code_syntax(code: str, language: str = "python") -> bool:
-    """Validates code syntax using ast for Python and basic pattern checks for C/Rust/Go."""
+    """Validates code syntax using ast for Python, node for JS/TS, and basic pattern checks for other C-like languages."""
     if not code or not isinstance(code, str):
         return False
 
@@ -50,21 +117,20 @@ def validate_code_syntax(code: str, language: str = "python") -> bool:
             return True
         except SyntaxError:
             return False
-    elif language in ["c", "cpp", "c++", "rust", "go"]:
-        brace_count = 0
-        paren_count = 0
-        for char in code:
-            if char == "{":
-                brace_count += 1
-            elif char == "}":
-                brace_count -= 1
-            elif char == "(":
-                paren_count += 1
-            elif char == ")":
-                paren_count -= 1
-            if brace_count < 0 or paren_count < 0:
-                return False
-        return brace_count == 0 and paren_count == 0
+    elif language in ["javascript", "js", "typescript", "ts"]:
+        return validate_js_ts_syntax(code, language)
+    elif language in [
+        "c",
+        "cpp",
+        "c++",
+        "rust",
+        "go",
+        "java",
+        "kotlin",
+        "swift",
+        "scala",
+    ]:
+        return _brace_balance_check(code)
     return True
 
 
@@ -279,9 +345,16 @@ def main():
         dest="synthetic",
         help="Use real HuggingFace datasets",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Perform dry run with quick synthetic sample generation",
+    )
 
     args = parser.parse_args()
-    use_synthetic = args.dry_run or args.synthetic
+    if args.dry_run:
+        args.sample_size = min(args.sample_size, 5)
+        args.synthetic = True
     variants = ["c", "r", "g"] if args.variant == "all" else [args.variant]
 
     total_prepared = 0

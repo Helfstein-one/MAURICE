@@ -24,7 +24,7 @@ RUN cmake --build build --config Release -j$(nproc) --target llama-cli llama-qua
 # ==========================================================
 # Stage 2: Runtime Environment (100% glibc compatível)
 # ==========================================================
-FROM docker.io/library/python:3.11-slim
+FROM docker.io/library/python:3.11-slim-bookworm
 
 LABEL maintainer="Maurício Helfstein Gonçalves"
 LABEL project="MAURICE"
