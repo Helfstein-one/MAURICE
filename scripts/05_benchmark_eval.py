@@ -164,6 +164,11 @@ def main():
         default="build/benchmark_results.json",
         help="Path to write JSON benchmark report",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Perform dry run benchmark evaluation without requiring real models",
+    )
 
     args = parser.parse_args()
     variants = ["c", "r", "g"] if args.variant == "all" else [args.variant]
