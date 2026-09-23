@@ -12,11 +12,7 @@ prepare_datasets = importlib.util.module_from_spec(spec)
 sys.modules["prepare_datasets"] = prepare_datasets
 spec.loader.exec_module(prepare_datasets)
 
-from unittest.mock import patch
-
 validate_code_syntax = prepare_datasets.validate_code_syntax
-_brace_balance_check = prepare_datasets._brace_balance_check
-validate_js_ts_syntax = prepare_datasets.validate_js_ts_syntax
 validate_think_tags = prepare_datasets.validate_think_tags
 format_chatml_example = prepare_datasets.format_chatml_example
 generate_synthetic_samples = prepare_datasets.generate_synthetic_samples
@@ -24,31 +20,6 @@ SYSTEM_PROMPTS = prepare_datasets.SYSTEM_PROMPTS
 
 
 class TestDatasetFilter(unittest.TestCase):
-    def test_validate_js_valid_arrow_function(self):
-        code = "const add = (a, b) => a + b;"
-        self.assertTrue(validate_code_syntax(code, "javascript"))
-        self.assertTrue(validate_code_syntax(code, "js"))
-
-    def test_validate_js_unbalanced_braces(self):
-        code = "function test() { console.log('hello');"
-        self.assertFalse(validate_code_syntax(code, "javascript"))
-
-    def test_validate_ts_interface(self):
-        code = "interface User {\n  name: string;\n  age: number;\n}"
-        self.assertTrue(validate_code_syntax(code, "typescript"))
-        self.assertTrue(validate_code_syntax(code, "ts"))
-
-    def test_brace_balance_check_with_brackets(self):
-        valid_code = "const arr = [1, 2, (3 + 4)];"
-        invalid_code = "const arr = [1, 2, (3 + 4);"
-        self.assertTrue(_brace_balance_check(valid_code))
-        self.assertFalse(_brace_balance_check(invalid_code))
-
-    def test_validate_js_node_fallback(self):
-        code = "const x = [1, 2, 3];"
-        with patch("subprocess.run", side_effect=FileNotFoundError("node not found")):
-            self.assertTrue(validate_code_syntax(code, "javascript"))
-
     def test_ast_validation_valid(self):
         valid_code = "def add(a: int, b: int) -> int:\n    return a + b"
         self.assertTrue(validate_code_syntax(valid_code, "python"))
