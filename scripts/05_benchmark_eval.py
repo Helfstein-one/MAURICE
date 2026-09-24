@@ -157,6 +157,54 @@ def run_benchmark_variant(variant: str, model_path: str | None = None) -> dict[s
     return results
 
 
+def analyze_benchmark_results(results: list[dict[str, Any]]) -> dict[str, Any]:
+    """Analyzes benchmark results and calculates comparative performance metrics across variants."""
+    if not results:
+        return {"total_models": 0, "summary": {}, "variant_summaries": []}
+
+    variant_summaries = []
+    best_throughput = {"variant": None, "value": -1.0}
+    best_ttft = {"variant": None, "value": float("inf")}
+    best_memory = {"variant": None, "value": float("inf")}
+
+    for res in results:
+        v_name = res.get("variant", "unknown")
+        metrics = res.get("metrics", {})
+        tps = metrics.get("tokens_per_second", 0.0)
+        ttft = metrics.get("time_to_first_token_ms", 0.0)
+        rss = metrics.get("peak_rss_mb", 0.0)
+        eval_scores = metrics.get("evaluation_scores", {})
+
+        if tps > best_throughput["value"]:
+            best_throughput = {"variant": v_name, "value": tps}
+
+        if 0 < ttft < best_ttft["value"]:
+            best_ttft = {"variant": v_name, "value": ttft}
+
+        if 0 < rss < best_memory["value"]:
+            best_memory = {"variant": v_name, "value": rss}
+
+        variant_summaries.append(
+            {
+                "variant": v_name,
+                "hardware": res.get("hardware_acceleration", "unknown"),
+                "tokens_per_second": tps,
+                "time_to_first_token_ms": ttft,
+                "peak_rss_mb": rss,
+                "evaluation_scores": eval_scores,
+            }
+        )
+
+    analysis = {
+        "total_models": len(results),
+        "best_throughput": best_throughput if best_throughput["variant"] else None,
+        "lowest_ttft_ms": best_ttft if best_ttft["variant"] else None,
+        "lowest_peak_rss_mb": best_memory if best_memory["variant"] else None,
+        "variant_summaries": variant_summaries,
+    }
+    return analysis
+
+
 def main():
     parser = argparse.ArgumentParser(description="MAURICE Hardware Benchmark & Evaluation Harness")
     parser.add_argument(
@@ -177,20 +225,41 @@ def main():
         action="store_true",
         help="Perform dry run benchmark evaluation without requiring real models",
     )
+    parser.add_argument(
+        "--input-json",
+        type=str,
+        default=None,
+        help="Path to an existing benchmark JSON report to analyze",
+    )
+    parser.add_argument(
+        "--analyze",
+        action="store_true",
+        help="Perform analysis on benchmark results and print summary",
+    )
 
     args = parser.parse_args()
-    variants = ["c", "r", "g"] if args.variant == "all" else [args.variant]
 
-    all_results = []
-    for v in variants:
-        res = run_benchmark_variant(v, model_path=args.model_path if args.variant != "all" else None)
-        all_results.append(res)
+    if args.input_json and os.path.exists(args.input_json):
+        with open(args.input_json, "r", encoding="utf-8") as f:
+            all_results = json.load(f)
+    else:
+        variants = ["c", "r", "g"] if args.variant == "all" else [args.variant]
+        all_results = []
+        for v in variants:
+            res = run_benchmark_variant(v, model_path=args.model_path if args.variant != "all" else None)
+            all_results.append(res)
 
-    os.makedirs(os.path.dirname(args.output_json), exist_ok=True)
-    with open(args.output_json, "w", encoding="utf-8") as f:
-        json.dump(all_results, f, indent=2)
+        os.makedirs(os.path.dirname(args.output_json), exist_ok=True)
+        with open(args.output_json, "w", encoding="utf-8") as f:
+            json.dump(all_results, f, indent=2)
+        print(f"\nSaved hardware evaluation report to {args.output_json}")
 
-    print(f"\nSaved hardware evaluation report to {args.output_json}")
+    if args.analyze or args.input_json:
+        analysis = analyze_benchmark_results(all_results)
+        print("\n==================================================")
+        print("MAURICE BENCHMARK ANALYSIS REPORT")
+        print("==================================================")
+        print(json.dumps(analysis, indent=2))
 
 
 if __name__ == "__main__":
