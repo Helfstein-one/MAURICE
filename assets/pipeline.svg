@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 480" width="100%" height="100%">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="100%" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="card-blue" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1e3a8a"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+    <linearGradient id="card-purple" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#581c87"/>
+      <stop offset="100%" stop-color="#7e22ce"/>
+    </linearGradient>
+    <linearGradient id="card-emerald" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#064e3b"/>
+      <stop offset="100%" stop-color="#047857"/>
+    </linearGradient>
+    <linearGradient id="card-amber" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#78350f"/>
+      <stop offset="100%" stop-color="#b45309"/>
+    </linearGradient>
+    <linearGradient id="card-cyan" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#164e63"/>
+      <stop offset="100%" stop-color="#0e7490"/>
+    </linearGradient>
+    <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
+      <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#000" flood-opacity="0.4"/>
+    </filter>
+    <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8"/>
+    </marker>
+  </defs>
+
+  <rect width="960" height="480" fill="url(#bg)" rx="12"/>
+
+  <!-- Header -->
+  <text x="480" y="42" font-family="system-ui, -apple-system, sans-serif" font-size="22" font-weight="700" fill="#f8fafc" text-anchor="middle">
+    MAURICE End-to-End Pipeline Architecture
+  </text>
+  <text x="480" y="66" font-family="system-ui, -apple-system, sans-serif" font-size="13" fill="#94a3b8" text-anchor="middle">
+    Automated Fine-Tuning, Quantization, Evaluation, and Inference Delivery
+  </text>
+
+  <!-- Step 1: Data Prep -->
+  <g transform="translate(40, 110)" filter="url(#shadow)">
+    <rect width="250" height="130" rx="10" fill="url(#card-blue)" stroke="#3b82f6" stroke-width="1.5"/>
+    <text x="16" y="32" font-family="sans-serif" font-size="13" font-weight="700" fill="#60a5fa">STAGE 01</text>
+    <text x="16" y="54" font-family="sans-serif" font-size="16" font-weight="700" fill="#ffffff">Dataset Preparation</text>
+    <text x="16" y="78" font-family="sans-serif" font-size="12" fill="#cbd5e1">• HF Datasets / Synthetic</text>
+    <text x="16" y="96" font-family="sans-serif" font-size="12" fill="#cbd5e1">• AST Syntax &amp; Tag Validation</text>
+    <text x="16" y="114" font-family="sans-serif" font-size="12" fill="#93c5fd">Output: ChatML JSONL</text>
+  </g>
+
+  <!-- Arrow 1 -> 2 -->
+  <path d="M 290 175 L 340 175" stroke="#38bdf8" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- Step 2: QLoRA Training -->
+  <g transform="translate(350, 110)" filter="url(#shadow)">
+    <rect width="260" height="130" rx="10" fill="url(#card-purple)" stroke="#a855f7" stroke-width="1.5"/>
+    <text x="16" y="32" font-family="sans-serif" font-size="13" font-weight="700" fill="#c084fc">STAGE 02</text>
+    <text x="16" y="54" font-family="sans-serif" font-size="16" font-weight="700" fill="#ffffff">QLoRA Fine-Tuning</text>
+    <text x="16" y="78" font-family="sans-serif" font-size="12" fill="#e9d5ff">• Base: DeepSeek-R1-Distill 1.5B</text>
+    <text x="16" y="96" font-family="sans-serif" font-size="12" fill="#e9d5ff">• 4-bit NF4, r=16, alpha=16</text>
+    <text x="16" y="114" font-family="sans-serif" font-size="12" fill="#d8b4fe">Unsloth / PEFT Adapter Checkpoints</text>
+  </g>
+
+  <!-- Arrow 2 -> 3 -->
+  <path d="M 610 175 L 660 175" stroke="#38bdf8" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- Step 3: Adapter Merge -->
+  <g transform="translate(670, 110)" filter="url(#shadow)">
+    <rect width="250" height="130" rx="10" fill="url(#card-emerald)" stroke="#10b981" stroke-width="1.5"/>
+    <text x="16" y="32" font-family="sans-serif" font-size="13" font-weight="700" fill="#34d399">STAGE 03</text>
+    <text x="16" y="54" font-family="sans-serif" font-size="16" font-weight="700" fill="#ffffff">Weight Consolidation</text>
+    <text x="16" y="78" font-family="sans-serif" font-size="12" fill="#a7f3d0">• QLoRA Adapter Merge</text>
+    <text x="16" y="96" font-family="sans-serif" font-size="12" fill="#a7f3d0">• De-quantize &amp; Combine</text>
+    <text x="16" y="114" font-family="sans-serif" font-size="12" fill="#6ee7b7">Output: Consolidated FP16 HF</text>
+  </g>
+
+  <!-- Down arrow from Stage 3 to Stage 4 -->
+  <path d="M 795 240 L 795 280 L 700 280" stroke="#38bdf8" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- Step 4: GGUF imatrix Quantization -->
+  <g transform="translate(430, 290)" filter="url(#shadow)">
+    <rect width="250" height="130" rx="10" fill="url(#card-amber)" stroke="#f59e0b" stroke-width="1.5"/>
+    <text x="16" y="32" font-family="sans-serif" font-size="13" font-weight="700" fill="#fbbf24">STAGE 04</text>
+    <text x="16" y="54" font-family="sans-serif" font-size="16" font-weight="700" fill="#ffffff">imatrix GGUF Quant</text>
+    <text x="16" y="78" font-family="sans-serif" font-size="12" fill="#fde68a">• Domain Calibration Dataset</text>
+    <text x="16" y="96" font-family="sans-serif" font-size="12" fill="#fde68a">• llama-imatrix Dat Generation</text>
+    <text x="16" y="114" font-family="sans-serif" font-size="12" fill="#fcd34d">Output: Q4_K_M GGUF Model</text>
+  </g>
+
+  <!-- Left arrow from Stage 4 to Stage 5 -->
+  <path d="M 430 355 L 340 355" stroke="#38bdf8" stroke-width="2.5" marker-end="url(#arrow)"/>
+
+  <!-- Step 5: Eval & Serving Delivery -->
+  <g transform="translate(70, 290)" filter="url(#shadow)">
+    <rect width="250" height="130" rx="10" fill="url(#card-cyan)" stroke="#06b6d4" stroke-width="1.5"/>
+    <text x="16" y="32" font-family="sans-serif" font-size="13" font-weight="700" fill="#22d3ee">STAGE 05 &amp; 06</text>
+    <text x="16" y="54" font-family="sans-serif" font-size="16" font-weight="700" fill="#ffffff">Eval &amp; Serving Delivery</text>
+    <text x="16" y="78" font-family="sans-serif" font-size="12" fill="#cffaffe">• Hardware Benchmarks (t/s, RSS)</text>
+    <text x="16" y="96" font-family="sans-serif" font-size="12" fill="#cffafe">• OpenAI FastAPI + Streamlit UI</text>
+    <text x="16" y="114" font-family="sans-serif" font-size="12" fill="#67e8f9">CoT Reasoning Interactive UI</text>
+  </g>
+</svg>
