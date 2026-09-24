@@ -18,6 +18,7 @@ validate_code_syntax = prepare_datasets.validate_code_syntax
 _brace_balance_check = prepare_datasets._brace_balance_check
 validate_js_ts_syntax = prepare_datasets.validate_js_ts_syntax
 validate_think_tags = prepare_datasets.validate_think_tags
+validate_code_in_assistant_content = prepare_datasets.validate_code_in_assistant_content
 format_chatml_example = prepare_datasets.format_chatml_example
 generate_synthetic_samples = prepare_datasets.generate_synthetic_samples
 SYSTEM_PROMPTS = prepare_datasets.SYSTEM_PROMPTS
@@ -62,6 +63,12 @@ class TestDatasetFilter(unittest.TestCase):
         invalid_c = 'int main() { printf("Hello");'
         self.assertTrue(validate_code_syntax(valid_c, "c"))
         self.assertFalse(validate_code_syntax(invalid_c, "c"))
+
+    def test_code_in_assistant_content_validation(self):
+        valid_python = "```python\nx = 1\n```"
+        invalid_python = "```python\nx = (1 +\n```"
+        self.assertTrue(validate_code_in_assistant_content(valid_python))
+        self.assertFalse(validate_code_in_assistant_content(invalid_python))
 
     def test_think_tag_validation(self):
         valid_think = "<think>\nValid reasoning chain.\n</think>\nActual answer."

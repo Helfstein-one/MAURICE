@@ -12,6 +12,7 @@ import argparse
 import ast
 import json
 import os
+import re
 import subprocess
 import tempfile
 from typing import Any
@@ -133,6 +134,38 @@ def validate_think_tags(response: str) -> bool:
     return think_start < think_end
 
 
+def validate_code_in_assistant_content(content: str) -> bool:
+    """Validates syntax of code blocks within assistant response content."""
+    if not content or not isinstance(content, str):
+        return False
+
+    code_blocks = re.findall(r"```([a-zA-Z0-9_+-]*)\n(.*?)```", content, re.DOTALL)
+    if not code_blocks:
+        return True
+
+    for lang, code in code_blocks:
+        lang = lang.strip().lower()
+        if lang in [
+            "python",
+            "py",
+            "javascript",
+            "js",
+            "typescript",
+            "ts",
+            "c",
+            "cpp",
+            "c++",
+            "rust",
+            "go",
+            "java",
+            "kotlin",
+            "swift",
+            "scala",
+        ] and not validate_code_syntax(code, lang):
+            return False
+    return True
+
+
 def format_chatml_example(system_prompt: str, user_prompt: str, assistant_response: str) -> dict[str, Any]:
     """Formats prompt components into standard ChatML schema."""
     return {
@@ -229,19 +262,29 @@ def process_hf_dataset(variant: str, sample_size: int = 50) -> list[dict[str, An
             sys_prompt = SYSTEM_PROMPTS["r"]
             for row in ds:
                 conversations = row.get("conversations", [])
-                if conversations:
-                    user_val = conversations[0].get("value", "")
-                    assistant_val = conversations[1].get("value", "") if len(conversations) > 1 else ""
+                user_val, assistant_val = "", ""
+                if conversations and isinstance(conversations, list):
+                    for msg in conversations:
+                        if isinstance(msg, dict):
+                            role = msg.get("role") or msg.get("from")
+                            if role in ["user", "human"] and not user_val:
+                                user_val = msg.get("value") or msg.get("content") or ""
+                            elif role in ["assistant", "gpt"] and not assistant_val:
+                                assistant_val = msg.get("value") or msg.get("content") or ""
+                if user_val and assistant_val:
                     records.append(format_chatml_example(sys_prompt, user_val, assistant_val))
         elif variant == "g":
             ds = load_dataset("teknium/OpenHermes-2.5", split=f"train[:{sample_size}]")
             sys_prompt = SYSTEM_PROMPTS["g"]
             for row in ds:
                 instruction = row.get("instruction", "")
-                output = row.get("output", "")
-                if not output.startswith("<think>"):
-                    output = f"<think>\n</think>\n{output}"
-                records.append(format_chatml_example(sys_prompt, instruction, output))
+                input_val = row.get("input", "")
+                user_msg = f"{instruction}\n{input_val}".strip() if input_val else instruction.strip()
+                output = row.get("output", "").strip()
+                if user_msg and output:
+                    if not output.startswith("<think>"):
+                        output = f"<think>\n</think>\n{output}"
+                    records.append(format_chatml_example(sys_prompt, user_msg, output))
     except Exception as e:  # noqa: BLE001
         print(f"Warning: Failed to load HF dataset ({e}). Falling back to synthetic sample generation.")
         records = generate_synthetic_samples(variant, count=sample_size)
@@ -270,6 +313,8 @@ def process_variant(variant: str, output_path: str, sample_size: int = 50, synth
         ):
             assistant_content = msgs[2].get("content", "")
             if variant == "r" and not validate_think_tags(assistant_content):
+                continue
+            if variant == "c" and not validate_code_in_assistant_content(assistant_content):
                 continue
             valid_records.append(record)
 

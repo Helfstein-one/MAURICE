@@ -43,6 +43,16 @@ def test_validate_think_tags_valid():
     assert prepare_datasets.validate_think_tags(valid_response) is True
 
 
+def test_validate_code_in_assistant_content():
+    valid_content = "<think>\nTesting code\n</think>\n```python\ndef foo():\n    return 42\n```"
+    invalid_content = "<think>\nTesting code\n</think>\n```python\ndef foo(:\n    return 42\n```"
+    no_code = "Just plain text response."
+
+    assert prepare_datasets.validate_code_in_assistant_content(valid_content) is True
+    assert prepare_datasets.validate_code_in_assistant_content(invalid_content) is False
+    assert prepare_datasets.validate_code_in_assistant_content(no_code) is True
+
+
 def test_validate_think_tags_missing():
     no_start = "Thinking steps...\n</think>\nFinal answer."
     no_end = "<think>\nThinking steps...\nFinal answer."
@@ -108,6 +118,35 @@ def test_process_variant(tmp_path):
     assert len(lines) == 3
     data = json.loads(lines[0])
     assert "messages" in data
+
+
+def test_process_hf_dataset_mocked():
+    mock_ds_c = [{"content": "def add(a, b):\n    return a + b"}]
+    mock_ds_r = [
+        {
+            "conversations": [
+                {"role": "user", "value": "What is 2+2?"},
+                {"role": "assistant", "value": "<think>\n2+2=4\n</think>\n4"},
+            ]
+        }
+    ]
+    mock_ds_g = [{"instruction": "Say hi", "input": "", "output": "Hello!"}]
+
+    with patch("datasets.load_dataset") as mock_load:
+        mock_load.return_value = mock_ds_c
+        recs_c = prepare_datasets.process_hf_dataset("c", sample_size=1)
+        assert len(recs_c) == 1
+        assert "def add" in recs_c[0]["messages"][2]["content"]
+
+        mock_load.return_value = mock_ds_r
+        recs_r = prepare_datasets.process_hf_dataset("r", sample_size=1)
+        assert len(recs_r) == 1
+        assert "2+2=4" in recs_r[0]["messages"][2]["content"]
+
+        mock_load.return_value = mock_ds_g
+        recs_g = prepare_datasets.process_hf_dataset("g", sample_size=1)
+        assert len(recs_g) == 1
+        assert "<think>" in recs_g[0]["messages"][2]["content"]
 
 
 def test_process_variant_real_hf_fallback(tmp_path):
