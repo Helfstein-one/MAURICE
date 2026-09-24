@@ -100,9 +100,7 @@ def test_generate_synthetic_samples_variant_g():
 
 def test_process_variant(tmp_path):
     out_file = str(tmp_path / "train_c.jsonl")
-    count = prepare_datasets.process_variant(
-        "c", out_file, sample_size=3, synthetic=True
-    )
+    count = prepare_datasets.process_variant("c", out_file, sample_size=3, synthetic=True)
     assert count == 3
     assert Path(out_file).exists()
 
@@ -115,9 +113,7 @@ def test_process_variant(tmp_path):
 def test_process_variant_real_hf_fallback(tmp_path):
     out_file = str(tmp_path / "train_fallback.jsonl")
     # Request synthetic=False to test HF exception fallback handling without network
-    count = prepare_datasets.process_variant(
-        "c", out_file, sample_size=2, synthetic=False
-    )
+    count = prepare_datasets.process_variant("c", out_file, sample_size=2, synthetic=False)
     assert count > 0
     assert Path(out_file).exists()
 

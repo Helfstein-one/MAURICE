@@ -8,9 +8,7 @@ class TestMauricePipeline(unittest.TestCase):
     def test_config_files(self):
         for v in ["c", "r", "g"]:
             config_path = f"configs/variant_{v}.json"
-            self.assertTrue(
-                os.path.exists(config_path), f"Config file {config_path} missing"
-            )
+            self.assertTrue(os.path.exists(config_path), f"Config file {config_path} missing")
             with open(config_path, "r") as f:
                 data = json.load(f)
                 self.assertEqual(data["variant"], v)
@@ -54,9 +52,7 @@ class TestMauricePipeline(unittest.TestCase):
                 check=False,
             )
             self.assertEqual(res.returncode, 0, f"Error: {res.stderr}")
-            self.assertTrue(
-                os.path.exists(f"checkpoints/adapter_{v}/adapter_config.json")
-            )
+            self.assertTrue(os.path.exists(f"checkpoints/adapter_{v}/adapter_config.json"))
 
     def test_merge_weights_dry_run(self):
         for v in ["c", "r", "g"]:
