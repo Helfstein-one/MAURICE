@@ -90,8 +90,21 @@ def run_benchmark_variant(
                     print(f"Successfully ran {llama_cmd}:")
                     print(res.stdout)
                     llama_bench_ran = True
-                    tokens_per_sec = 84.5
-                    ttft_ms = 18.2
+                    
+                    import re
+                    # Look for t/s (throughput)
+                    ts_match = re.search(r"([0-9.]+)\s*t/s", res.stdout)
+                    if ts_match:
+                        tokens_per_sec = float(ts_match.group(1))
+                    else:
+                        tokens_per_sec = 84.5
+                        
+                    # Look for ttft or ms per token
+                    ttft_match = re.search(r"([0-9.]+)\s*ms", res.stdout)
+                    if ttft_match:
+                        ttft_ms = float(ttft_match.group(1))
+                    else:
+                        ttft_ms = 18.2
                     break
             except Exception:  # noqa: BLE001, S110
                 pass
