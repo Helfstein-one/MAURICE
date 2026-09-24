@@ -48,8 +48,11 @@ test:
 	pytest tests/ -v --tb=short
 
 lint:
-	ruff check scripts/ tests/
-	ruff format --check scripts/ tests/
+	ruff check .
+	ruff format --check .
+
+ui:
+	streamlit run ui/app.py
 
 clean:
 	rm -rf checkpoints/ build/ results/
@@ -69,4 +72,5 @@ help:
 	@echo '  dry-run    Smoke test entire pipeline without GPU'
 	@echo '  test       Run pytest suite'
 	@echo '  lint       Run ruff linter'
+	@echo '  ui         Run Streamlit UI'
 	@echo '  clean      Remove build artifacts'
