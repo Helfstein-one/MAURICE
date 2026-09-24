@@ -59,9 +59,7 @@ def load_model() -> None:
         logger.warning("Starting without a loaded model (for testing purposes).")
 
 
-def _generate_response(
-    prompt: str, max_tokens: int, temperature: float, top_p: float
-) -> str:
+def _generate_response(prompt: str, max_tokens: int, temperature: float, top_p: float) -> str:
     if model is None or tokenizer is None:
         return "This is a mock response because the model is not loaded."
 
@@ -77,15 +75,11 @@ def _generate_response(
             pad_token_id=tokenizer.eos_token_id,
         )
 
-    response = tokenizer.decode(
-        outputs[0][inputs.input_ids.shape[-1] :], skip_special_tokens=True
-    )
+    response = tokenizer.decode(outputs[0][inputs.input_ids.shape[-1] :], skip_special_tokens=True)
     return response
 
 
-async def generate_stream(
-    request: ChatCompletionRequest, prompt: str
-) -> AsyncGenerator[str, None]:
+async def generate_stream(request: ChatCompletionRequest, prompt: str) -> AsyncGenerator[str, None]:
     req_id = f"chatcmpl-{uuid.uuid4().hex}"
     created = int(time.time())
 
@@ -105,9 +99,7 @@ async def generate_stream(
             "object": "chat.completion.chunk",
             "created": created,
             "model": request.model,
-            "choices": [
-                {"index": 0, "delta": {"content": chunk}, "finish_reason": None}
-            ],
+            "choices": [{"index": 0, "delta": {"content": chunk}, "finish_reason": None}],
         }
         yield f"data: {json.dumps(response_obj)}\n\n"
 
@@ -132,9 +124,7 @@ async def chat_completions(
     prompt += "assistant: "
 
     if request.stream:
-        return StreamingResponse(
-            generate_stream(request, prompt), media_type="text/event-stream"
-        )
+        return StreamingResponse(generate_stream(request, prompt), media_type="text/event-stream")
 
     response_text = _generate_response(
         prompt,

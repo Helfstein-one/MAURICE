@@ -65,6 +65,4 @@ if prompt := st.chat_input("Enter your prompt here..."):
             elif part.strip():
                 st.markdown(part)
 
-        st.session_state.messages.append(
-            {"role": "assistant", "content": assistant_content}
-        )
+        st.session_state.messages.append({"role": "assistant", "content": assistant_content})
