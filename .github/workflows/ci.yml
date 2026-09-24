@@ -203,22 +203,12 @@ jobs:
           python -m py_compile scripts/06_serve_model.py
 
   # ==========================================================
-  # CAMADA 3: Matriz de Testes Unitários
+  # CAMADA 3: Processos de Testes Unitários Separados
   # ==========================================================
-  unit_tests_matrix:
-    name: 03 - Test Matrix (${{ matrix.suite }})
+  unit_tests_datasets:
+    name: 03A - Unit Tests (Schema & Datasets)
     needs: [static_typing, dryrun_05, dryrun_ci_scripts]
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - suite: "Schema & Datasets"
-            tests: "tests/test_01_prepare_datasets.py tests/test_dataset_filter.py"
-          - suite: "Tokenizer & Prompts"
-            tests: "tests/test_02_train_qlora.py tests/test_05_benchmark_eval.py"
-          - suite: "Model Config Unit"
-            tests: "tests/test_03_merge_weights.py tests/test_pipeline.py"
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -236,14 +226,60 @@ jobs:
 
       - name: Run Pytest Suite
         run: |
-          pytest ${{ matrix.tests }} -v -m "not slow"
+          pytest tests/test_01_prepare_datasets.py tests/test_dataset_filter.py -v -m "not slow"
+
+  unit_tests_tokenizer:
+    name: 03B - Unit Tests (Tokenizer & Prompts)
+    needs: [static_typing, dryrun_05, dryrun_ci_scripts]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Test Dependencies
+        run: |
+          pip install pytest datasets
+          pip install -e . 2>/dev/null || true
+
+      - name: Run Pytest Suite
+        run: |
+          pytest tests/test_02_train_qlora.py tests/test_05_benchmark_eval.py -v -m "not slow"
+
+  unit_tests_model_config:
+    name: 03C - Unit Tests (Model Config Unit)
+    needs: [static_typing, dryrun_05, dryrun_ci_scripts]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Test Dependencies
+        run: |
+          pip install pytest datasets
+          pip install -e . 2>/dev/null || true
+
+      - name: Run Pytest Suite
+        run: |
+          pytest tests/test_03_merge_weights.py tests/test_pipeline.py -v -m "not slow"
 
   # ==========================================================
   # CAMADA 4: Isolamento do Build e Smoke Test Nativo C++
   # ==========================================================
   podman_setup:
     name: 04A - Podman Engine Setup
-    needs: [changes, unit_tests_matrix]
+    needs: [changes, unit_tests_datasets, unit_tests_tokenizer, unit_tests_model_config]
     if: needs.changes.outputs.container == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -323,7 +359,9 @@ jobs:
       - static_typing
       - dryrun_05
       - dryrun_ci_scripts
-      - unit_tests_matrix
+      - unit_tests_datasets
+      - unit_tests_tokenizer
+      - unit_tests_model_config
       - podman_setup
       - container_layer_build
       - container_native_smoke
