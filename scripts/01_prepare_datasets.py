@@ -211,6 +211,65 @@ def generate_synthetic_samples(variant: str, count: int = 10) -> list[dict[str, 
     return samples
 
 
+def process_hf_dataset(variant: str, sample_size: int = 50) -> list[dict[str, Any]]:
+    """Loads and processes Hugging Face datasets for a specific variant."""
+    records = []
+    try:
+        from datasets import load_dataset
+
+        print(f"Attempting to load HF dataset for variant '{variant}'...")
+        if variant == "c":
+            ds = load_dataset(
+                "bigcode/the-stack-smol-xs",
+                data_dir="data/python",
+                split=f"train[:{sample_size}]",
+            )
+            sys_prompt = SYSTEM_PROMPTS["c"]
+            for row in ds:
+                code = row.get("content", "")
+                if validate_code_syntax(code, "python"):
+                    records.append(
+                        format_chatml_example(
+                            sys_prompt,
+                            "Validate and format the following code module:",
+                            f"<think>\nParsing AST for Python code...\nValid syntax confirmed.\n</think>\n```python\n{code}\n```",
+                        )
+                    )
+        elif variant == "r":
+            ds = load_dataset(
+                "HuggingFaceH4/Bespoke-Stratos-17k",
+                split=f"train[:{sample_size}]",
+            )
+            sys_prompt = SYSTEM_PROMPTS["r"]
+            for row in ds:
+                conversations = row.get("conversations", [])
+                if conversations:
+                    user_val = conversations[0].get("value", "")
+                    assistant_val = (
+                        conversations[1].get("value", "")
+                        if len(conversations) > 1
+                        else ""
+                    )
+                    records.append(
+                        format_chatml_example(sys_prompt, user_val, assistant_val)
+                    )
+        elif variant == "g":
+            ds = load_dataset("teknium/OpenHermes-2.5", split=f"train[:{sample_size}]")
+            sys_prompt = SYSTEM_PROMPTS["g"]
+            for row in ds:
+                instruction = row.get("instruction", "")
+                output = row.get("output", "")
+                if not output.startswith("<think>"):
+                    output = f"<think>\n</think>\n{output}"
+                records.append(format_chatml_example(sys_prompt, instruction, output))
+    except Exception as e:  # noqa: BLE001
+        print(
+            f"Warning: Failed to load HF dataset ({e}). Falling back to synthetic sample generation."
+        )
+        records = generate_synthetic_samples(variant, count=sample_size)
+    return records
+
+
 def process_variant(
     variant: str, output_path: str, sample_size: int = 50, synthetic: bool = True
 ) -> int:
@@ -222,63 +281,7 @@ def process_variant(
         print(f"Generating synthetic records for variant '{variant}'...")
         records = generate_synthetic_samples(variant, count=sample_size)
     else:
-        try:
-            from datasets import load_dataset
-
-            print(f"Attempting to load HF dataset for variant '{variant}'...")
-            if variant == "c":
-                ds = load_dataset(
-                    "bigcode/the-stack-smol-xs",
-                    data_dir="data/python",
-                    split=f"train[:{sample_size}]",
-                )
-                sys_prompt = SYSTEM_PROMPTS["c"]
-                for row in ds:
-                    code = row.get("content", "")
-                    if validate_code_syntax(code, "python"):
-                        records.append(
-                            format_chatml_example(
-                                sys_prompt,
-                                "Validate and format the following code module:",
-                                f"<think>\nParsing AST for Python code...\nValid syntax confirmed.\n</think>\n```python\n{code}\n```",
-                            )
-                        )
-            elif variant == "r":
-                ds = load_dataset(
-                    "HuggingFaceH4/Bespoke-Stratos-17k",
-                    split=f"train[:{sample_size}]",
-                )
-                sys_prompt = SYSTEM_PROMPTS["r"]
-                for row in ds:
-                    conversations = row.get("conversations", [])
-                    if conversations:
-                        user_val = conversations[0].get("value", "")
-                        assistant_val = (
-                            conversations[1].get("value", "")
-                            if len(conversations) > 1
-                            else ""
-                        )
-                        records.append(
-                            format_chatml_example(sys_prompt, user_val, assistant_val)
-                        )
-            elif variant == "g":
-                ds = load_dataset(
-                    "teknium/OpenHermes-2.5", split=f"train[:{sample_size}]"
-                )
-                sys_prompt = SYSTEM_PROMPTS["g"]
-                for row in ds:
-                    instruction = row.get("instruction", "")
-                    output = row.get("output", "")
-                    if not output.startswith("<think>"):
-                        output = f"<think>\n</think>\n{output}"
-                    records.append(
-                        format_chatml_example(sys_prompt, instruction, output)
-                    )
-        except Exception as e:  # noqa: BLE001
-            print(
-                f"Warning: Failed to load HF dataset ({e}). Falling back to synthetic sample generation."
-            )
-            records = generate_synthetic_samples(variant, count=sample_size)
+        records = process_hf_dataset(variant, sample_size=sample_size)
 
     valid_records = []
     for record in records:
