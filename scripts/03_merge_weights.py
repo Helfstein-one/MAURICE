@@ -33,9 +33,7 @@ def merge_weights(
     print("==================================================")
 
     if dry_run or not os.path.exists(os.path.join(adapter_path, "adapter_config.json")):
-        print(
-            "[Dry-Run / Fallback Mode] Creating consolidated 16-bit mock checkpoint metadata..."
-        )
+        print("[Dry-Run / Fallback Mode] Creating consolidated 16-bit mock checkpoint metadata...")
         merged_meta = {
             "variant": variant,
             "architecture": "DeepSeekR1ForCausalLM",
@@ -45,9 +43,7 @@ def merge_weights(
         }
         with open(os.path.join(output_dir, "config.json"), "w", encoding="utf-8") as f:
             json.dump(merged_meta, f, indent=2)
-        with open(
-            os.path.join(output_dir, "model.safetensors"), "w", encoding="utf-8"
-        ) as f:
+        with open(os.path.join(output_dir, "model.safetensors"), "w", encoding="utf-8") as f:
             f.write("MOCK_16BIT_MERGED_WEIGHTS\n")
         print(f"Merged model saved to {output_dir}")
         return
@@ -68,16 +64,12 @@ def merge_weights(
             model.save_pretrained_merged(output_dir, tokenizer, save_method=save_method)
             print(f"Unsloth merged model exported to {output_dir}")
         except Exception as unsloth_err:  # noqa: BLE001
-            print(
-                f"Unsloth merge skipped ({unsloth_err}). Trying standard PEFT merge_and_unload..."
-            )
+            print(f"Unsloth merge skipped ({unsloth_err}). Trying standard PEFT merge_and_unload...")
             from peft import PeftModel
 
             with open(os.path.join(adapter_path, "adapter_config.json"), "r") as f:
                 adapter_cfg = json.load(f)
-            base_model_name = adapter_cfg.get(
-                "base_model", "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
-            )
+            base_model_name = adapter_cfg.get("base_model", "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B")
 
             base_model = AutoModelForCausalLM.from_pretrained(
                 base_model_name, torch_dtype=torch.float16, device_map="cpu"
@@ -90,9 +82,7 @@ def merge_weights(
             print(f"PEFT merged model saved to {output_dir}")
 
     except Exception as e:  # noqa: BLE001
-        print(
-            f"Merge execution encountered error ({e}). Creating fallback merged checkpoint..."
-        )
+        print(f"Merge execution encountered error ({e}). Creating fallback merged checkpoint...")
         merged_meta = {
             "variant": variant,
             "architecture": "DeepSeekR1ForCausalLM",
@@ -102,27 +92,21 @@ def merge_weights(
         }
         with open(os.path.join(output_dir, "config.json"), "w", encoding="utf-8") as f:
             json.dump(merged_meta, f, indent=2)
-        with open(
-            os.path.join(output_dir, "model.safetensors"), "w", encoding="utf-8"
-        ) as f:
+        with open(os.path.join(output_dir, "model.safetensors"), "w", encoding="utf-8") as f:
             f.write("FALLBACK_16BIT_MERGED_WEIGHTS\n")
         print(f"Fallback merged model saved to {output_dir}")
 
 
 def main():
     parser = argparse.ArgumentParser(description="MAURICE Weight Merger")
-    parser.add_argument(
-        "--variant", choices=["c", "r", "g"], required=True, help="Model variant"
-    )
+    parser.add_argument("--variant", choices=["c", "r", "g"], required=True, help="Model variant")
     parser.add_argument(
         "--adapter-path",
         type=str,
         default=None,
         help="Path to adapter checkpoint",
     )
-    parser.add_argument(
-        "--output-dir", type=str, default=None, help="Path for merged output"
-    )
+    parser.add_argument("--output-dir", type=str, default=None, help="Path for merged output")
     parser.add_argument(
         "--save-method",
         type=str,

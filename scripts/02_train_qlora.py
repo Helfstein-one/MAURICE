@@ -22,9 +22,7 @@ from typing import Any
 def load_variant_config(variant: str, config_dir: str = "configs") -> dict[str, Any]:
     config_file = os.path.join(config_dir, f"variant_{variant}.json")
     if not os.path.exists(config_file):
-        raise FileNotFoundError(
-            f"Config file for variant '{variant}' not found at {config_file}"
-        )
+        raise FileNotFoundError(f"Config file for variant '{variant}' not found at {config_file}")
     with open(config_file, "r", encoding="utf-8") as f:
         return json.load(f)
 
@@ -43,9 +41,7 @@ def run_training(
 
     variant_name = config.get("name", f"mau-llm-1.0-{variant}")
     base_model = config.get("base_model", "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B")
-    dataset_file = config.get("datasets", {}).get(
-        "processed_file", f"data/processed/train_{variant}.jsonl"
-    )
+    dataset_file = config.get("datasets", {}).get("processed_file", f"data/processed/train_{variant}.jsonl")
 
     if not output_dir:
         output_dir = f"checkpoints/adapter_{variant}"
@@ -65,9 +61,7 @@ def run_training(
     print("==================================================")
 
     if dry_run:
-        print(
-            "[Dry-Run Mode] Simulating training loop and saving dummy adapter checkpoint..."
-        )
+        print("[Dry-Run Mode] Simulating training loop and saving dummy adapter checkpoint...")
         dummy_adapter = {
             "variant": variant,
             "base_model": base_model,
@@ -76,13 +70,9 @@ def run_training(
             "peft_type": "LORA",
             "target_modules": config["lora"]["target_modules"],
         }
-        with open(
-            os.path.join(output_dir, "adapter_config.json"), "w", encoding="utf-8"
-        ) as f:
+        with open(os.path.join(output_dir, "adapter_config.json"), "w", encoding="utf-8") as f:
             json.dump(dummy_adapter, f, indent=2)
-        with open(
-            os.path.join(output_dir, "adapter_model.bin"), "w", encoding="utf-8"
-        ) as f:
+        with open(os.path.join(output_dir, "adapter_model.bin"), "w", encoding="utf-8") as f:
             f.write("DUMMY_LORA_WEIGHTS\n")
         print(f"[Dry-Run Mode] Saved mock adapter weights to {output_dir}")
         return
@@ -112,9 +102,7 @@ def run_training(
                 random_state=3407,
             )
         except ImportError:
-            print(
-                "Unsloth not detected. Falling back to standard Hugging Face PEFT/bitsandbytes."
-            )
+            print("Unsloth not detected. Falling back to standard Hugging Face PEFT/bitsandbytes.")
             from peft import LoraConfig, get_peft_model
             from transformers import AutoModelForCausalLM
 
@@ -149,13 +137,9 @@ def run_training(
             "status": "trained_fallback",
             "peft_type": "LORA",
         }
-        with open(
-            os.path.join(output_dir, "adapter_config.json"), "w", encoding="utf-8"
-        ) as f:
+        with open(os.path.join(output_dir, "adapter_config.json"), "w", encoding="utf-8") as f:
             json.dump(dummy_adapter, f, indent=2)
-        with open(
-            os.path.join(output_dir, "adapter_model.bin"), "w", encoding="utf-8"
-        ) as f:
+        with open(os.path.join(output_dir, "adapter_model.bin"), "w", encoding="utf-8") as f:
             f.write("FALLBACK_LORA_WEIGHTS\n")
         print(f"Fallback adapter checkpoint saved to {output_dir}")
 
@@ -168,9 +152,7 @@ def main():
         required=True,
         help="Model variant to train",
     )
-    parser.add_argument(
-        "--config", type=str, default=None, help="Path to custom JSON config"
-    )
+    parser.add_argument("--config", type=str, default=None, help="Path to custom JSON config")
     parser.add_argument(
         "--dry-run",
         action="store_true",

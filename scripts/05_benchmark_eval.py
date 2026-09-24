@@ -57,9 +57,7 @@ def detect_hardware_accel() -> str:
     return f"{platform.system()} {platform.machine()}"
 
 
-def run_benchmark_variant(
-    variant: str, model_path: str | None = None
-) -> dict[str, Any]:
+def run_benchmark_variant(variant: str, model_path: str | None = None) -> dict[str, Any]:
     if not model_path:
         model_path = f"build/mau-llm-1.0-{variant}-q4_k_m.gguf"
 
@@ -146,18 +144,14 @@ def run_benchmark_variant(
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="MAURICE Hardware Benchmark & Evaluation Harness"
-    )
+    parser = argparse.ArgumentParser(description="MAURICE Hardware Benchmark & Evaluation Harness")
     parser.add_argument(
         "--variant",
         choices=["c", "r", "g", "all"],
         default="all",
         help="Model variant to evaluate",
     )
-    parser.add_argument(
-        "--model-path", type=str, default=None, help="Path to GGUF model"
-    )
+    parser.add_argument("--model-path", type=str, default=None, help="Path to GGUF model")
     parser.add_argument(
         "--output-json",
         type=str,
@@ -175,9 +169,7 @@ def main():
 
     all_results = []
     for v in variants:
-        res = run_benchmark_variant(
-            v, model_path=args.model_path if args.variant != "all" else None
-        )
+        res = run_benchmark_variant(v, model_path=args.model_path if args.variant != "all" else None)
         all_results.append(res)
 
     os.makedirs(os.path.dirname(args.output_json), exist_ok=True)
