@@ -90,15 +90,16 @@ def run_benchmark_variant(
                     print(f"Successfully ran {llama_cmd}:")
                     print(res.stdout)
                     llama_bench_ran = True
-                    
+
                     import re
+
                     # Look for t/s (throughput)
                     ts_match = re.search(r"([0-9.]+)\s*t/s", res.stdout)
                     if ts_match:
                         tokens_per_sec = float(ts_match.group(1))
                     else:
                         tokens_per_sec = 84.5
-                        
+
                     # Look for ttft or ms per token
                     ttft_match = re.search(r"([0-9.]+)\s*ms", res.stdout)
                     if ttft_match:

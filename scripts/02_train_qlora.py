@@ -138,9 +138,9 @@ def run_training(
             from datasets import load_dataset
             from transformers import TrainingArguments
             from trl import SFTTrainer
-            
+
             dataset = load_dataset("json", data_files=dataset_file, split="train")
-            
+
             trainer = SFTTrainer(
                 model=model,
                 train_dataset=dataset,

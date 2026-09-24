@@ -254,18 +254,14 @@ def process_hf_dataset(variant: str, sample_size: int = 50) -> list[dict[str, An
                         format_chatml_example(sys_prompt, user_val, assistant_val)
                     )
         elif variant == "g":
-            ds = load_dataset(
-                "teknium/OpenHermes-2.5", split=f"train[:{sample_size}]"
-            )
+            ds = load_dataset("teknium/OpenHermes-2.5", split=f"train[:{sample_size}]")
             sys_prompt = SYSTEM_PROMPTS["g"]
             for row in ds:
                 instruction = row.get("instruction", "")
                 output = row.get("output", "")
                 if not output.startswith("<think>"):
                     output = f"<think>\n</think>\n{output}"
-                records.append(
-                    format_chatml_example(sys_prompt, instruction, output)
-                )
+                records.append(format_chatml_example(sys_prompt, instruction, output))
     except Exception as e:  # noqa: BLE001
         print(
             f"Warning: Failed to load HF dataset ({e}). Falling back to synthetic sample generation."
