@@ -13,10 +13,41 @@ concurrency:
 
 jobs:
   # ==========================================================
-  # NÍVEL 1: Análise Estática e Qualidade (Trava imediata)
+  # CAMADA 0: Path Filtering (dorny/paths-filter)
   # ==========================================================
-  code_quality:
-    name: 01 - Code Quality & Lint
+  changes:
+    name: 00 - Filter
+    runs-on: ubuntu-latest
+    outputs:
+      core_py: ${{ steps.filter.outputs.core_py }}
+      scripts: ${{ steps.filter.outputs.scripts }}
+      tests: ${{ steps.filter.outputs.tests }}
+      container: ${{ steps.filter.outputs.container }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Path Filter
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            core_py:
+              - '**/*.py'
+              - 'pyproject.toml'
+            scripts:
+              - 'scripts/**/*.py'
+            tests:
+              - 'tests/**/*.py'
+            container:
+              - 'Containerfile'
+
+  # ==========================================================
+  # CAMADA 1: Fast-Check Paralelo (< 30s)
+  # ==========================================================
+  lint_code:
+    name: Lint Code (Ruff)
+    needs: changes
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -28,23 +59,166 @@ jobs:
           python-version: "3.11"
           cache: "pip"
 
-      - name: Install Linting Tools
+      - name: Install Ruff
         run: |
           python -m pip install --upgrade pip
           pip install ruff
 
-      - name: Check Lint & Formatting
+      - name: Check Lint
         run: |
           ruff check .
+
+  format_code:
+    name: Format (Ruff)
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Ruff
+        run: |
+          python -m pip install --upgrade pip
+          pip install ruff
+
+      - name: Check Formatting
+        run: |
           ruff format --check .
 
-  # ==========================================================
-  # NÍVEL 2: Testes Unitários de Schema e Parsing
-  # ==========================================================
-  unit_tests:
-    name: 02 - Unit & Schema Tests
-    needs: code_quality
+  dryrun_01:
+    name: Dryrun 01 (Datasets)
+    needs: changes
     runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Syntax Check 01_prepare_datasets
+        run: |
+          python -m py_compile scripts/01_prepare_datasets.py
+
+  dryrun_02:
+    name: Dryrun 02 (QLoRA)
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Syntax Check 02_train_qlora
+        run: |
+          python -m py_compile scripts/02_train_qlora.py
+
+  dryrun_03:
+    name: Dryrun 03 (Merge)
+    needs: changes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Syntax Check 03_merge_weights
+        run: |
+          python -m py_compile scripts/03_merge_weights.py
+
+  # ==========================================================
+  # CAMADA 2: Análise Estática & Dryruns Dependentes
+  # ==========================================================
+  static_typing:
+    name: 02A - Typing (mypy)
+    needs: [lint_code, format_code]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Mypy
+        run: |
+          python -m pip install --upgrade pip
+          pip install mypy
+
+      - name: Run Type Check
+        run: |
+          mypy --ignore-missing-imports scripts/
+
+  dryrun_05:
+    name: Dryrun 05 (Benchmark)
+    needs: [dryrun_01, dryrun_02]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Syntax Check 05_benchmark_eval
+        run: |
+          python -m py_compile scripts/05_benchmark_eval.py
+
+  dryrun_ci_scripts:
+    name: Dryrun CI (Scripts)
+    needs: dryrun_03
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Syntax Check 06_serve_model
+        run: |
+          python -m py_compile scripts/06_serve_model.py
+
+  # ==========================================================
+  # CAMADA 3: Matriz de Testes Unitários
+  # ==========================================================
+  unit_tests_matrix:
+    name: 03 - Test Matrix (${{ matrix.suite }})
+    needs: [static_typing, dryrun_05, dryrun_ci_scripts]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: "Schema & Datasets"
+            tests: "tests/test_01_prepare_datasets.py tests/test_dataset_filter.py"
+          - suite: "Tokenizer & Prompts"
+            tests: "tests/test_02_train_qlora.py tests/test_05_benchmark_eval.py"
+          - suite: "Model Config Unit"
+            tests: "tests/test_03_merge_weights.py tests/test_pipeline.py"
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -60,16 +234,28 @@ jobs:
           pip install pytest datasets
           pip install -e . 2>/dev/null || true
 
-      - name: Run Pytest
+      - name: Run Pytest Suite
         run: |
-          pytest tests/ -v -m "not slow"
+          pytest ${{ matrix.tests }} -v -m "not slow"
 
   # ==========================================================
-  # NÍVEL 3: Build Podman & Validação do Runtime Nativo C++
+  # CAMADA 4: Isolamento do Build e Smoke Test Nativo C++
   # ==========================================================
-  container_build:
-    name: 03 - Podman Build & llama-cli Execution
-    needs: unit_tests
+  podman_setup:
+    name: 04A - Podman Engine Setup
+    needs: [changes, unit_tests_matrix]
+    if: needs.changes.outputs.container == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+          podman version
+
+  container_layer_build:
+    name: 04B - Containerfile Layer Compilation
+    needs: podman_setup
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
@@ -84,30 +270,71 @@ jobs:
         run: |
           podman build -t maurice:ci -f Containerfile .
 
+      - name: Save Container Image Artifact
+        run: |
+          mkdir -p /tmp/container-image
+          podman save maurice:ci -o /tmp/container-image/maurice-ci.tar
+
+      - name: Upload Container Image
+        uses: actions/upload-artifact@v4
+        with:
+          name: maurice-container-image
+          path: /tmp/container-image/maurice-ci.tar
+          retention-days: 1
+
+  container_native_smoke:
+    name: 04C - C++ Native Binary Smoke
+    needs: container_layer_build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+
+      - name: Download Container Image
+        uses: actions/download-artifact@v4
+        with:
+          name: maurice-container-image
+          path: /tmp/container-image
+
+      - name: Load Container Image
+        run: |
+          podman load -i /tmp/container-image/maurice-ci.tar
+
       - name: Validate Binary Execution Inside Container
         run: |
           podman run --rm maurice:ci llama-cli --help
+          podman run --rm maurice:ci ldd /home/maurice/bin/llama-cli
 
   # ==========================================================
-  # NÍVEL 4: Dry-Run do Pipeline de Modelos
+  # CAMADA 5: Gatekeeper Central para Regras de Proteção de Branch
   # ==========================================================
-  model_dryrun:
-    name: 04 - Pipeline Scripts Dry-Run (c, r, g)
-    needs: container_build
+  status_gatekeeper:
+    name: 05 - Branch Protection Gatekeeper
+    if: always()
+    needs:
+      - changes
+      - lint_code
+      - format_code
+      - dryrun_01
+      - dryrun_02
+      - dryrun_03
+      - static_typing
+      - dryrun_05
+      - dryrun_ci_scripts
+      - unit_tests_matrix
+      - podman_setup
+      - container_layer_build
+      - container_native_smoke
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Validate Scripts Compilation & Configs
+      - name: Evaluate DAG Workflow Results
         run: |
-          python -m py_compile scripts/01_prepare_datasets.py
-          python -m py_compile scripts/02_train_qlora.py
-          python -m py_compile scripts/03_merge_weights.py
-          python -m py_compile scripts/05_benchmark_eval.py
-          echo "Todos os módulos e pipelines foram validados com sucesso."
+          RESULTS="${{ join(needs.*.result, ',') }}"
+          echo "DAG node results: $RESULTS"
+          if [[ "$RESULTS" =~ "failure" ]] || [[ "$RESULTS" =~ "cancelled" ]]; then
+            echo "One or more required DAG jobs failed or were cancelled."
+            exit 1
+          fi
+          echo "All required DAG jobs passed or were skipped successfully."
