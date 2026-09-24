@@ -62,11 +62,17 @@ def validate_js_ts_syntax(code: str, language: str = "javascript") -> bool:
     ext = ".ts" if is_ts else ".js"
     tmp_path = None
     try:
-        with tempfile.NamedTemporaryFile(suffix=ext, mode="w", delete=False, encoding="utf-8") as f:
+        with tempfile.NamedTemporaryFile(
+            suffix=ext, mode="w", delete=False, encoding="utf-8"
+        ) as f:
             f.write(code)
             tmp_path = f.name
 
-        cmd = ["node", "--experimental-strip-types", tmp_path] if is_ts else ["node", "--check", tmp_path]
+        cmd = (
+            ["node", "--experimental-strip-types", tmp_path]
+            if is_ts
+            else ["node", "--check", tmp_path]
+        )
         result = subprocess.run(cmd, capture_output=True, timeout=5, check=False)
         if result.returncode == 0:
             return True
@@ -133,7 +139,9 @@ def validate_think_tags(response: str) -> bool:
     return think_start < think_end
 
 
-def format_chatml_example(system_prompt: str, user_prompt: str, assistant_response: str) -> dict[str, Any]:
+def format_chatml_example(
+    system_prompt: str, user_prompt: str, assistant_response: str
+) -> dict[str, Any]:
     """Formats prompt components into standard ChatML schema."""
     return {
         "messages": [
@@ -151,7 +159,9 @@ def generate_synthetic_samples(variant: str, count: int = 10) -> list[dict[str, 
 
     if variant == "c":
         for i in range(count):
-            user_msg = f"Refactor Python function #{i + 1} to calculate factorial efficiently."
+            user_msg = (
+                f"Refactor Python function #{i + 1} to calculate factorial efficiently."
+            )
             code_diff = (
                 "```diff\n"
                 "--- a/math_utils.py\n"
@@ -189,7 +199,11 @@ def generate_synthetic_samples(variant: str, count: int = 10) -> list[dict[str, 
 
     elif variant == "g":
         for i in range(count):
-            user_msg = f"What is the capital of country #{i + 1}?" if i > 0 else "What is the capital of France?"
+            user_msg = (
+                f"What is the capital of country #{i + 1}?"
+                if i > 0
+                else "What is the capital of France?"
+            )
             city = "Paris" if i == 0 else f"CapitalCity_{i + 1}"
             resp = f"<think>\n</think>\nThe capital is {city}."
             samples.append(format_chatml_example(sys_prompt, user_msg, resp))
@@ -197,7 +211,68 @@ def generate_synthetic_samples(variant: str, count: int = 10) -> list[dict[str, 
     return samples
 
 
-def process_variant(variant: str, output_path: str, sample_size: int = 50, synthetic: bool = True) -> int:
+def process_hf_dataset(variant: str, sample_size: int = 50) -> list[dict[str, Any]]:
+    """Loads and processes Hugging Face datasets for a specific variant."""
+    records = []
+    try:
+        from datasets import load_dataset
+
+        print(f"Attempting to load HF dataset for variant '{variant}'...")
+        if variant == "c":
+            ds = load_dataset(
+                "bigcode/the-stack-smol-xs",
+                data_dir="data/python",
+                split=f"train[:{sample_size}]",
+            )
+            sys_prompt = SYSTEM_PROMPTS["c"]
+            for row in ds:
+                code = row.get("content", "")
+                if validate_code_syntax(code, "python"):
+                    records.append(
+                        format_chatml_example(
+                            sys_prompt,
+                            "Validate and format the following code module:",
+                            f"<think>\nParsing AST for Python code...\nValid syntax confirmed.\n</think>\n```python\n{code}\n```",
+                        )
+                    )
+        elif variant == "r":
+            ds = load_dataset(
+                "HuggingFaceH4/Bespoke-Stratos-17k",
+                split=f"train[:{sample_size}]",
+            )
+            sys_prompt = SYSTEM_PROMPTS["r"]
+            for row in ds:
+                conversations = row.get("conversations", [])
+                if conversations:
+                    user_val = conversations[0].get("value", "")
+                    assistant_val = (
+                        conversations[1].get("value", "")
+                        if len(conversations) > 1
+                        else ""
+                    )
+                    records.append(
+                        format_chatml_example(sys_prompt, user_val, assistant_val)
+                    )
+        elif variant == "g":
+            ds = load_dataset("teknium/OpenHermes-2.5", split=f"train[:{sample_size}]")
+            sys_prompt = SYSTEM_PROMPTS["g"]
+            for row in ds:
+                instruction = row.get("instruction", "")
+                output = row.get("output", "")
+                if not output.startswith("<think>"):
+                    output = f"<think>\n</think>\n{output}"
+                records.append(format_chatml_example(sys_prompt, instruction, output))
+    except Exception as e:  # noqa: BLE001
+        print(
+            f"Warning: Failed to load HF dataset ({e}). Falling back to synthetic sample generation."
+        )
+        records = generate_synthetic_samples(variant, count=sample_size)
+    return records
+
+
+def process_variant(
+    variant: str, output_path: str, sample_size: int = 50, synthetic: bool = True
+) -> int:
     """Processes dataset for a specific variant and writes to JSONL file."""
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     records = []
@@ -206,51 +281,7 @@ def process_variant(variant: str, output_path: str, sample_size: int = 50, synth
         print(f"Generating synthetic records for variant '{variant}'...")
         records = generate_synthetic_samples(variant, count=sample_size)
     else:
-        try:
-            from datasets import load_dataset
-
-            print(f"Attempting to load HF dataset for variant '{variant}'...")
-            if variant == "c":
-                ds = load_dataset(
-                    "bigcode/the-stack-smol-xs",
-                    data_dir="data/python",
-                    split=f"train[:{sample_size}]",
-                )
-                sys_prompt = SYSTEM_PROMPTS["c"]
-                for row in ds:
-                    code = row.get("content", "")
-                    if validate_code_syntax(code, "python"):
-                        records.append(
-                            format_chatml_example(
-                                sys_prompt,
-                                "Validate and format the following code module:",
-                                f"<think>\nParsing AST for Python code...\nValid syntax confirmed.\n</think>\n```python\n{code}\n```",
-                            )
-                        )
-            elif variant == "r":
-                ds = load_dataset(
-                    "HuggingFaceH4/Bespoke-Stratos-17k",
-                    split=f"train[:{sample_size}]",
-                )
-                sys_prompt = SYSTEM_PROMPTS["r"]
-                for row in ds:
-                    conversations = row.get("conversations", [])
-                    if conversations:
-                        user_val = conversations[0].get("value", "")
-                        assistant_val = conversations[1].get("value", "") if len(conversations) > 1 else ""
-                        records.append(format_chatml_example(sys_prompt, user_val, assistant_val))
-            elif variant == "g":
-                ds = load_dataset("teknium/OpenHermes-2.5", split=f"train[:{sample_size}]")
-                sys_prompt = SYSTEM_PROMPTS["g"]
-                for row in ds:
-                    instruction = row.get("instruction", "")
-                    output = row.get("output", "")
-                    if not output.startswith("<think>"):
-                        output = f"<think>\n</think>\n{output}"
-                    records.append(format_chatml_example(sys_prompt, instruction, output))
-        except Exception as e:  # noqa: BLE001
-            print(f"Warning: Failed to load HF dataset ({e}). Falling back to synthetic sample generation.")
-            records = generate_synthetic_samples(variant, count=sample_size)
+        records = process_hf_dataset(variant, sample_size=sample_size)
 
     valid_records = []
     for record in records:
@@ -267,7 +298,9 @@ def process_variant(variant: str, output_path: str, sample_size: int = 50, synth
             valid_records.append(record)
 
     with open(output_path, "w", encoding="utf-8") as f:
-        f.writelines(json.dumps(rec, ensure_ascii=False) + "\n" for rec in valid_records)
+        f.writelines(
+            json.dumps(rec, ensure_ascii=False) + "\n" for rec in valid_records
+        )
 
     print(f"Successfully wrote {len(valid_records)} records to {output_path}")
     return len(valid_records)
@@ -281,7 +314,9 @@ def main():
         default="all",
         help="Target model variant",
     )
-    parser.add_argument("--sample-size", type=int, default=50, help="Number of samples to process")
+    parser.add_argument(
+        "--sample-size", type=int, default=50, help="Number of samples to process"
+    )
     parser.add_argument(
         "--synthetic",
         action="store_true",
@@ -309,10 +344,14 @@ def main():
     total_prepared = 0
     for v in variants:
         out_file = f"data/processed/train_{v}.jsonl"
-        count = process_variant(v, out_file, sample_size=args.sample_size, synthetic=args.synthetic)
+        count = process_variant(
+            v, out_file, sample_size=args.sample_size, synthetic=args.synthetic
+        )
         total_prepared += count
 
-    print(f"Pipeline complete. Total records prepared across variants: {total_prepared}")
+    print(
+        f"Pipeline complete. Total records prepared across variants: {total_prepared}"
+    )
 
 
 if __name__ == "__main__":
