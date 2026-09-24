@@ -54,7 +54,5 @@ def tmp_jsonl_dataset(tmp_path):
             },
         ]
     }
-    jsonl_file.write_text(
-        json.dumps(sample, ensure_ascii=False) + "\n", encoding="utf-8"
-    )
+    jsonl_file.write_text(json.dumps(sample, ensure_ascii=False) + "\n", encoding="utf-8")
     return jsonl_file

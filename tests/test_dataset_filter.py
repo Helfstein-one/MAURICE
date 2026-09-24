@@ -88,9 +88,7 @@ class TestDatasetFilter(unittest.TestCase):
             self.assertTrue(validate_think_tags(assistant_content))
 
     def test_chatml_schema(self):
-        chatml = format_chatml_example(
-            SYSTEM_PROMPTS["c"], "User query", "Assistant reply"
-        )
+        chatml = format_chatml_example(SYSTEM_PROMPTS["c"], "User query", "Assistant reply")
         self.assertIn("messages", chatml)
         self.assertEqual(len(chatml["messages"]), 3)
         self.assertEqual(chatml["messages"][0]["role"], "system")
