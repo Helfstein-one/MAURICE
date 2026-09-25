@@ -2,6 +2,8 @@ import importlib.util
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import requests
+
 script_path = Path(__file__).parent.parent / "ui" / "app.py"
 
 
@@ -89,5 +91,22 @@ def test_format_variant_table():
 
 def test_render_app_executes_without_error():
     mock_st.session_state = MockSessionState()
+    mock_st.chat_input.return_value = None
     with patch.dict("sys.modules", {"streamlit": mock_st}):
         ui_app.render_app()
+
+
+def test_render_app_handles_connection_error():
+    mock_st.session_state = MockSessionState()
+    mock_st.chat_input.return_value = "Test query"
+    with (
+        patch.dict("sys.modules", {"streamlit": mock_st}),
+        patch("requests.post", side_effect=requests.exceptions.ConnectionError("Connection refused")),
+    ):
+        ui_app.render_app()
+
+    assert len(mock_st.session_state.messages) == 2
+    assert mock_st.session_state.messages[0]["role"] == "user"
+    assert mock_st.session_state.messages[0]["content"] == "Test query"
+    assert mock_st.session_state.messages[1]["role"] == "assistant"
+    assert "Error connecting to inference server: Connection refused" in mock_st.session_state.messages[1]["content"]
