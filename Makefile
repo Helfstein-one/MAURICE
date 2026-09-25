@@ -1,7 +1,8 @@
-.PHONY: all prepare train merge quantize eval clean help test dry-run lint
+.PHONY: all prepare train merge quantize eval serve clean help test dry-run lint
 
 PYTHON ?= python3
 VARIANT ?= all
+PORT ?= 8000
 
 all: prepare train merge quantize eval
 
@@ -38,11 +39,15 @@ quantize:
 eval:
 	$(PYTHON) scripts/05_benchmark_eval.py --variant $(VARIANT)
 
+serve:
+	$(PYTHON) scripts/06_serve_model.py --variant $(or $(VARIANT),c) --port $(or $(PORT),8000)
+
 dry-run:
 	$(PYTHON) scripts/01_prepare_datasets.py --variant all --dry-run
 	$(PYTHON) scripts/02_train_qlora.py --variant c --dry-run
 	$(PYTHON) scripts/03_merge_weights.py --variant c --dry-run
 	$(PYTHON) scripts/05_benchmark_eval.py --variant all --dry-run
+	$(PYTHON) -m py_compile scripts/06_serve_model.py
 
 test:
 	pytest tests/ -v --tb=short
@@ -69,6 +74,7 @@ help:
 	@echo '  merge      Merge adapter weights into base model'
 	@echo '  quantize   Convert to GGUF and quantize with imatrix'
 	@echo '  eval       Run benchmark evaluation'
+	@echo '  serve      Start FastAPI inference server for specified variant'
 	@echo '  dry-run    Smoke test entire pipeline without GPU'
 	@echo '  test       Run pytest suite'
 	@echo '  lint       Run ruff linter'
