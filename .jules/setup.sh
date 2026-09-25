@@ -16,7 +16,7 @@ sudo apt-get install -y --no-install-recommends \
 
 # Upgrade pip and install linting/testing harnesses
 python3 -m pip install --upgrade pip setuptools wheel
-python3 -m pip install ruff pytest pytest-mock datasets pydantic transformers
+python3 -m pip install ruff pytest pytest-mock datasets pydantic transformers requests streamlit
 
 # Install local repo in editable mode if pyproject.toml exists
 python3 -m pip install -e . 2>/dev/null || true
