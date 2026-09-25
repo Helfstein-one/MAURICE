@@ -275,8 +275,8 @@ jobs:
         run: |
           pytest tests/test_03_merge_weights.py tests/test_07_publish_hub.py tests/test_pipeline.py -v -m "not slow"
 
-  unit_tests_ui:
-    name: 03D - Unit Tests (Streamlit UI & Integration)
+  unit_tests_serve:
+    name: 03D - Unit Tests (Inference Server)
     needs: [static_typing, dryrun_05, dryrun_ci_scripts]
     runs-on: ubuntu-latest
     steps:
@@ -291,19 +291,19 @@ jobs:
 
       - name: Install Test Dependencies
         run: |
-          pip install pytest pytest-mock requests streamlit
+          pip install pytest fastapi uvicorn httpx
           pip install -e . 2>/dev/null || true
 
-      - name: Run Pytest UI Suite
+      - name: Run Pytest Suite
         run: |
-          pytest tests/test_ui.py -v
+          pytest tests/test_06_serve_model.py -v -m "not slow"
 
   # ==========================================================
   # CAMADA 4: Isolamento do Build e Smoke Test Nativo C++
   # ==========================================================
   podman_setup:
     name: 04A - Podman Engine Setup
-    needs: [changes, unit_tests_datasets, unit_tests_tokenizer, unit_tests_model_config]
+    needs: [changes, unit_tests_datasets, unit_tests_tokenizer, unit_tests_model_config, unit_tests_serve]
     if: needs.changes.outputs.container == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -386,7 +386,7 @@ jobs:
       - unit_tests_datasets
       - unit_tests_tokenizer
       - unit_tests_model_config
-      - unit_tests_ui
+      - unit_tests_serve
       - podman_setup
       - container_layer_build
       - container_native_smoke
