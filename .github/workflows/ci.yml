@@ -198,9 +198,10 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Syntax Check 06_serve_model
+      - name: Syntax Check 06_serve_model & 07_publish_hub
         run: |
           python -m py_compile scripts/06_serve_model.py
+          python -m py_compile scripts/07_publish_hub.py
 
   # ==========================================================
   # CAMADA 3: Processos de Testes Unitários Separados
@@ -272,7 +273,7 @@ jobs:
 
       - name: Run Pytest Suite
         run: |
-          pytest tests/test_03_merge_weights.py tests/test_pipeline.py -v -m "not slow"
+          pytest tests/test_03_merge_weights.py tests/test_07_publish_hub.py tests/test_pipeline.py -v -m "not slow"
 
   # ==========================================================
   # CAMADA 4: Isolamento do Build e Smoke Test Nativo C++
