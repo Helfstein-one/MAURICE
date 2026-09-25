@@ -275,6 +275,29 @@ jobs:
         run: |
           pytest tests/test_03_merge_weights.py tests/test_07_publish_hub.py tests/test_pipeline.py -v -m "not slow"
 
+  unit_tests_ui:
+    name: 03D - Unit Tests (Streamlit UI & Integration)
+    needs: [static_typing, dryrun_05, dryrun_ci_scripts]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Test Dependencies
+        run: |
+          pip install pytest pytest-mock requests streamlit
+          pip install -e . 2>/dev/null || true
+
+      - name: Run Pytest UI Suite
+        run: |
+          pytest tests/test_ui.py -v
+
   # ==========================================================
   # CAMADA 4: Isolamento do Build e Smoke Test Nativo C++
   # ==========================================================
@@ -363,6 +386,7 @@ jobs:
       - unit_tests_datasets
       - unit_tests_tokenizer
       - unit_tests_model_config
+      - unit_tests_ui
       - podman_setup
       - container_layer_build
       - container_native_smoke
