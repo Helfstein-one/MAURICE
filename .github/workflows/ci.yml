@@ -198,10 +198,11 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Syntax Check 06_serve_model & 07_publish_hub
+      - name: Syntax Check 06_serve_model & 07_publish_hub & 08_code_review
         run: |
           python -m py_compile scripts/06_serve_model.py
           python -m py_compile scripts/07_publish_hub.py
+          python -m py_compile scripts/08_code_review.py
 
   # ==========================================================
   # CAMADA 3: Processos de Testes Unitários Separados

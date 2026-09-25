@@ -1,4 +1,4 @@
-.PHONY: all prepare train merge quantize eval serve clean help test dry-run lint
+.PHONY: all prepare train merge quantize eval serve code-review clean help test dry-run lint
 
 PYTHON ?= python3
 VARIANT ?= all
@@ -42,12 +42,17 @@ eval:
 serve:
 	$(PYTHON) scripts/06_serve_model.py --variant $(or $(VARIANT),c) --port $(or $(PORT),8000)
 
+code-review:
+	$(PYTHON) scripts/08_code_review.py --dry-run
+
 dry-run:
 	$(PYTHON) scripts/01_prepare_datasets.py --variant all --dry-run
 	$(PYTHON) scripts/02_train_qlora.py --variant c --dry-run
 	$(PYTHON) scripts/03_merge_weights.py --variant c --dry-run
 	$(PYTHON) scripts/05_benchmark_eval.py --variant all --dry-run
 	$(PYTHON) -m py_compile scripts/06_serve_model.py
+	$(PYTHON) -m py_compile scripts/08_code_review.py
+	$(PYTHON) scripts/08_code_review.py --dry-run
 
 test:
 	pytest tests/ -v --tb=short
@@ -75,6 +80,7 @@ help:
 	@echo '  quantize   Convert to GGUF and quantize with imatrix'
 	@echo '  eval       Run benchmark evaluation'
 	@echo '  serve      Start FastAPI inference server for specified variant'
+	@echo '  code-review Run proactive code review on PR diffs using mau-llm-1.0-c'
 	@echo '  dry-run    Smoke test entire pipeline without GPU'
 	@echo '  test       Run pytest suite'
 	@echo '  lint       Run ruff linter'
