@@ -200,10 +200,11 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Syntax Check 06_serve_model & 07_publish_hub & validate_reasoning
+      - name: Syntax Check 06_serve_model & 07_publish_hub & 08_code_review & validate_reasoning
         run: |
           python -m py_compile scripts/06_serve_model.py
           python -m py_compile scripts/07_publish_hub.py
+          python -m py_compile scripts/08_code_review.py
           python -m py_compile scripts/validate_reasoning.py
           python scripts/validate_reasoning.py --dry-run
 

@@ -1,4 +1,4 @@
-.PHONY: all prepare train merge quantize eval serve ui clean help test dry-run lint quality-gates mcp-server validate-reasoning
+.PHONY: all prepare train merge quantize eval serve code-review ui clean help test dry-run lint quality-gates mcp-server validate-reasoning
 
 MAURICE ?= maurice
 PYTHON ?= python3
@@ -46,6 +46,9 @@ validate-reasoning:
 serve:
 	$(MAURICE) serve --variant $(VARIANT) --port $(PORT)
 
+code-review:
+	$(PYTHON) scripts/08_code_review.py
+
 dry-run:
 	$(MAURICE) prepare --variant all --dry-run
 	$(MAURICE) train --variant c --dry-run
@@ -53,6 +56,8 @@ dry-run:
 	$(MAURICE) eval --variant all --dry-run
 	$(PYTHON) scripts/validate_reasoning.py --dry-run
 	$(PYTHON) -m py_compile scripts/06_serve_model.py
+	$(PYTHON) -m py_compile scripts/07_publish_hub.py
+	$(PYTHON) -m py_compile scripts/08_code_review.py
 	$(PYTHON) -m py_compile scripts/08_mcp_quality_gates.py
 
 quality-gates:
@@ -88,6 +93,7 @@ help:
 	@echo '  eval       Run benchmark evaluation'
 	@echo '  validate-reasoning Validate mau-llm-1.0-r mathematical & CoT reasoning'
 	@echo '  serve      Launch FastAPI inference server'
+	@echo '  code-review Run proactive code review on a PR'
 	@echo '  dry-run    Smoke test entire pipeline without GPU'
 	@echo '  test          Run pytest suite'
 	@echo '  lint          Run ruff linter'
