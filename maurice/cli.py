@@ -1,195 +1,98 @@
 """
-MAURICE Unified Command Line Interface (maurice/cli.py)
+MAURICE CLI Entrypoint (maurice/cli.py)
+
+Unifies the pipeline into a single `maurice` command with subcommands.
 """
 
 import argparse
-import platform
-import subprocess
 import sys
 
-import maurice
-from maurice.eval import main as eval_main
-from maurice.merge import main as merge_main
-from maurice.prepare import main as prepare_main
-from maurice.serve import main as serve_main
-from maurice.train import main as train_main
 
-
-def run_quantize(variant: str, quant_type: str = "q4_k_m"):
-    """Invokes scripts/04_quantize_imatrix.sh via subprocess."""
-    cmd = ["bash", "scripts/04_quantize_imatrix.sh", variant, quant_type]
-    print(f"Running quantization: {' '.join(cmd)}")
-    res = subprocess.run(cmd, check=False)
-    sys.exit(res.returncode)
-
-
-def run_ui():
-    """Launches Streamlit UI."""
-    cmd = ["streamlit", "run", "ui/app.py"]
-    print(f"Launching Streamlit UI: {' '.join(cmd)}")
-    res = subprocess.run(cmd, check=False)
-    sys.exit(res.returncode)
-
-
-def print_info():
-    """Prints installed package version, hardware detection, and available variants."""
-    try:
-        from maurice.eval import detect_hardware_accel
-
-        hw = detect_hardware_accel()
-    except Exception:  # noqa: BLE001
-        hw = f"{platform.system()} {platform.machine()}"
-
-    print(f"MAURICE Package Version: {maurice.__version__}")
-    print(f"Author: {maurice.__author__}")
-    print(f"Detected Hardware Acceleration: {hw}")
-    print("Available Model Variants:")
-    print("  - c: mau-llm-1.0-c (Code & Refactor)")
-    print("  - r: mau-llm-1.0-r (Pure Reasoning)")
-    print("  - g: mau-llm-1.0-g (General Purpose)")
-
-
-def main(args_list: list[str] | None = None):
+def main():
     parser = argparse.ArgumentParser(
         prog="maurice",
-        description="MAURICE: Minimal Adaptation for Ultra-fast Reasoning and Inference in Code Engines",
+        description="Minimal Adaptation for Ultra-fast Reasoning and Inference in Code Engines",
     )
-    parser.add_argument("--version", action="version", version=f"maurice {maurice.__version__}")
+    subparsers = parser.add_subparsers(dest="command", help="Available subcommands")
+    subparsers.required = True
 
-    subparsers = parser.add_subparsers(dest="subcommand", help="Available subcommands")
+    # maurice prepare
+    parser_prep = subparsers.add_parser("prepare", help="Prepare datasets")
+    parser_prep.add_argument("--variant", choices=["c", "r", "g", "all"], default="c", help="Target variant")
+    parser_prep.add_argument("--dry-run", action="store_true", help="Run in dry-run mode")
 
-    # prepare
-    prep_parser = subparsers.add_parser("prepare", help="Prepare datasets for target variants")
-    prep_parser.add_argument("--variant", choices=["c", "r", "g", "all"], default="all")
-    prep_parser.add_argument("--sample-size", type=int, default=50)
-    prep_parser.add_argument("--synthetic", action="store_true", default=True)
-    prep_parser.add_argument("--real-hf", action="store_false", dest="synthetic")
-    prep_parser.add_argument("--dry-run", action="store_true")
+    # maurice train
+    parser_train = subparsers.add_parser("train", help="Run QLoRA training")
+    parser_train.add_argument("--variant", choices=["c", "r", "g"], required=True, help="Target variant")
+    parser_train.add_argument("--dry-run", action="store_true", help="Run in dry-run mode")
 
-    # train
-    train_parser = subparsers.add_parser("train", help="Train QLoRA adapters")
-    train_parser.add_argument("--variant", choices=["c", "r", "g"], required=True)
-    train_parser.add_argument("--config", type=str, default=None)
-    train_parser.add_argument("--dry-run", action="store_true")
-    train_parser.add_argument("--output-dir", type=str, default=None)
+    # maurice merge
+    parser_merge = subparsers.add_parser("merge", help="Merge adapter weights")
+    parser_merge.add_argument("--variant", choices=["c", "r", "g"], required=True, help="Target variant")
+    parser_merge.add_argument("--dry-run", action="store_true", help="Run in dry-run mode")
 
-    # merge
-    merge_parser = subparsers.add_parser("merge", help="Merge LoRA adapters into base FP16 model")
-    merge_parser.add_argument("--variant", choices=["c", "r", "g"], required=True)
-    merge_parser.add_argument("--adapter-path", type=str, default=None)
-    merge_parser.add_argument("--output-dir", type=str, default=None)
-    merge_parser.add_argument("--save-method", type=str, default="merged_16bit")
-    merge_parser.add_argument("--dry-run", action="store_true")
+    # maurice quantize
+    parser_quantize = subparsers.add_parser("quantize", help="Quantize to GGUF using imatrix")
+    parser_quantize.add_argument("--variant", choices=["c", "r", "g"], required=True, help="Target variant")
 
-    # quantize
-    quant_parser = subparsers.add_parser("quantize", help="Convert to GGUF and quantize with imatrix")
-    quant_parser.add_argument("--variant", choices=["c", "r", "g", "all"], default="c")
-    quant_parser.add_argument("--quant-type", type=str, default="q4_k_m")
+    # maurice eval
+    parser_eval = subparsers.add_parser("eval", help="Run benchmark evaluation")
+    parser_eval.add_argument("--variant", choices=["c", "r", "g", "all"], default="all", help="Target variant")
+    parser_eval.add_argument("--dry-run", action="store_true", help="Run in dry-run mode")
 
-    # eval
-    eval_parser = subparsers.add_parser("eval", help="Run hardware benchmark and evaluation harness")
-    eval_parser.add_argument("--variant", choices=["c", "r", "g", "all"], default="all")
-    eval_parser.add_argument("--model-path", type=str, default=None)
-    eval_parser.add_argument("--output-json", type=str, default="build/benchmark_results.json")
-    eval_parser.add_argument("--dry-run", action="store_true")
-    eval_parser.add_argument("--input-json", type=str, default=None)
-    eval_parser.add_argument("--analyze", action="store_true")
+    # maurice serve
+    parser_serve = subparsers.add_parser("serve", help="Start FastAPI inference server")
+    parser_serve.add_argument("--variant", choices=["c", "r", "g"], default="c", help="Target variant")
+    parser_serve.add_argument("--port", type=int, default=8000, help="Server port")
+    parser_serve.add_argument("--engine", choices=["hf", "vllm", "mock"], default="hf", help="Inference engine backend")
 
-    # serve
-    serve_parser = subparsers.add_parser("serve", help="Launch FastAPI inference server")
-    serve_parser.add_argument("--variant", choices=["c", "r", "g"], default="c")
-    serve_parser.add_argument("--host", type=str, default="0.0.0.0")
-    serve_parser.add_argument("--port", type=int, default=8000)
-    serve_parser.add_argument("--engine", choices=["hf", "vllm", "mock"], default="hf")
-    serve_parser.add_argument("--backend", choices=["hf", "vllm", "mock"], default=None)
-
-    # ui
+    # maurice ui
     subparsers.add_parser("ui", help="Launch Streamlit UI")
 
-    # info
-    subparsers.add_parser("info", help="Display version, hardware, and environment info")
+    # maurice synth-prefs
+    parser_synth = subparsers.add_parser("synth-prefs", help="Synthesize preference datasets using RLAIF")
+    parser_synth.add_argument("--variant", choices=["c", "r", "g"], required=True, help="Model variant")
+    parser_synth.add_argument("--input", type=str, help="Input SFT dataset")
+    parser_synth.add_argument("--output", type=str, help="Output preference dataset")
 
-    parsed_args, _extra = parser.parse_known_args(args_list)
+    # maurice align
+    parser_align = subparsers.add_parser("align", help="Run Post-SFT alignment (DPO/ORPO)")
+    parser_align.add_argument("--variant", choices=["c", "r", "g"], required=True, help="Target variant")
+    parser_align.add_argument("--method", choices=["dpo", "orpo"], default="orpo", help="Alignment method")
+    parser_align.add_argument("--dry-run", action="store_true", help="Run in dry-run mode")
 
-    if not parsed_args.subcommand:
+    args = parser.parse_args()
+
+    if args.command == "prepare":
+        from maurice.prepare import main as prep_main
+        prep_main(sys.argv[2:])
+    elif args.command == "train":
+        from maurice.train import main as train_main
+        train_main(sys.argv[2:])
+    elif args.command == "merge":
+        from maurice.merge import main as merge_main
+        merge_main(sys.argv[2:])
+    elif args.command == "eval":
+        from maurice.eval import main as eval_main
+        eval_main(sys.argv[2:])
+    elif args.command == "quantize":
+        print(f"Quantizing variant {args.variant} (delegating to shell script)...")
+        import subprocess
+        subprocess.run(["bash", "scripts/04_quantize_imatrix.sh", args.variant])
+    elif args.command == "serve":
+        from maurice.serve import main as serve_main
+        serve_main(sys.argv[2:])
+    elif args.command == "ui":
+        import subprocess
+        subprocess.run(["streamlit", "run", "ui/app.py"])
+    elif args.command == "synth-prefs":
+        from maurice.synth import main as synth_main
+        synth_main(sys.argv[2:])
+    elif args.command == "align":
+        from maurice.align import main as align_main
+        align_main(sys.argv[2:])
+    else:
         parser.print_help()
-        sys.exit(0)
-
-    sub = parsed_args.subcommand
-
-    # Forward to specific modules or actions
-    if sub == "prepare":
-        prep_args = []
-        if parsed_args.variant:
-            prep_args.extend(["--variant", parsed_args.variant])
-        if parsed_args.sample_size:
-            prep_args.extend(["--sample-size", str(parsed_args.sample_size)])
-        if parsed_args.dry_run:
-            prep_args.append("--dry-run")
-        prep_args.append("--synthetic" if parsed_args.synthetic else "--real-hf")
-        prepare_main(prep_args)
-
-    elif sub == "train":
-        t_args = ["--variant", parsed_args.variant]
-        if parsed_args.config:
-            t_args.extend(["--config", parsed_args.config])
-        if parsed_args.dry_run:
-            t_args.append("--dry-run")
-        if parsed_args.output_dir:
-            t_args.extend(["--output-dir", parsed_args.output_dir])
-        train_main(t_args)
-
-    elif sub == "merge":
-        m_args = ["--variant", parsed_args.variant]
-        if parsed_args.adapter_path:
-            m_args.extend(["--adapter-path", parsed_args.adapter_path])
-        if parsed_args.output_dir:
-            m_args.extend(["--output-dir", parsed_args.output_dir])
-        if parsed_args.save_method:
-            m_args.extend(["--save-method", parsed_args.save_method])
-        if parsed_args.dry_run:
-            m_args.append("--dry-run")
-        merge_main(m_args)
-
-    elif sub == "quantize":
-        run_quantize(parsed_args.variant, parsed_args.quant_type)
-
-    elif sub == "eval":
-        e_args = []
-        if parsed_args.variant:
-            e_args.extend(["--variant", parsed_args.variant])
-        if parsed_args.model_path:
-            e_args.extend(["--model-path", parsed_args.model_path])
-        if parsed_args.output_json:
-            e_args.extend(["--output-json", parsed_args.output_json])
-        if parsed_args.dry_run:
-            e_args.append("--dry-run")
-        if parsed_args.input_json:
-            e_args.extend(["--input-json", parsed_args.input_json])
-        if parsed_args.analyze:
-            e_args.append("--analyze")
-        eval_main(e_args)
-
-    elif sub == "serve":
-        s_args = [
-            "--variant",
-            parsed_args.variant,
-            "--host",
-            parsed_args.host,
-            "--port",
-            str(parsed_args.port),
-            "--engine",
-            parsed_args.engine,
-        ]
-        if parsed_args.backend is not None:
-            s_args.extend(["--backend", parsed_args.backend])
-        serve_main(s_args)
-
-    elif sub == "ui":
-        run_ui()
-
-    elif sub == "info":
-        print_info()
 
 
 if __name__ == "__main__":
