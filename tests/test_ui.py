@@ -30,6 +30,36 @@ with patch.dict("sys.modules", {"streamlit": mock_st}):
     spec.loader.exec_module(ui_app)
 
 
+def test_render_assistant_content_with_think_tag():
+    mock_expander = MagicMock()
+    mock_st_local = MagicMock()
+    mock_st_local.expander.return_value.__enter__.return_value = mock_expander
+
+    content = "<think>\nStep-by-step reasoning...\n</think>\nFinal Answer."
+    with patch.object(ui_app, "st", mock_st_local):
+        ui_app.render_assistant_content(content)
+
+    mock_st_local.expander.assert_called_with("Reasoning Process")
+    mock_st_local.markdown.assert_called_with("Final Answer.")
+
+
+def test_render_assistant_content_plain_text():
+    mock_st_local = MagicMock()
+    content = "Just a direct response."
+    with patch.object(ui_app, "st", mock_st_local):
+        ui_app.render_assistant_content(content)
+
+    mock_st_local.markdown.assert_called_once_with("Just a direct response.")
+
+
+def test_default_benchmark_results_kpi_calculation():
+    kpis = ui_app.parse_benchmark_kpis(ui_app.DEFAULT_BENCHMARK_RESULTS)
+    assert kpis["model_count"] == 3
+    assert kpis["max_throughput"] == 168.0
+    assert kpis["min_ttft_ms"] == 14.5
+    assert kpis["avg_peak_rss_mb"] == 497.33
+
+
 def test_parse_benchmark_kpis_empty():
     kpis = ui_app.parse_benchmark_kpis([])
     assert kpis["model_count"] == 0
