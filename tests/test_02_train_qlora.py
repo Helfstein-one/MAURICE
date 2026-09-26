@@ -1,7 +1,7 @@
 import importlib.util
 import json
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -104,3 +104,56 @@ def test_main_cli(tmp_path):
     ):
         train_qlora.main()
         assert (Path(out_dir) / "adapter_config.json").exists()
+
+
+def test_attn_implementation_selection(tmp_path):
+    out_dir = str(tmp_path / "out_attn")
+    mock_spec = type("ModuleSpec", (), {})()
+
+    mock_torch = type("TorchMock", (), {"cuda": type("CudaMock", (), {"is_available": lambda *args, **kwargs: False})()})()
+    mock_transformers = type("TransformersMock", (), {})()
+    mock_autotokenizer = type("AutoTokenizerMock", (), {"from_pretrained": MagicMock()})()
+    mock_automodel = type("AutoModelForCausalLMMock", (), {"from_pretrained": MagicMock()})()
+    mock_peft = type("PeftMock", (), {"LoraConfig": MagicMock(), "get_peft_model": MagicMock()})()
+    mock_datasets = type("DatasetsMock", (), {"load_dataset": MagicMock(side_effect=Exception("skip training loop"))})()
+
+    mock_transformers.AutoTokenizer = mock_autotokenizer
+    mock_transformers.AutoModelForCausalLM = mock_automodel
+
+    modules_dict = {
+        "unsloth": None,
+        "torch": mock_torch,
+        "transformers": mock_transformers,
+        "peft": mock_peft,
+        "datasets": mock_datasets,
+    }
+
+    # Test when flash_attn is available
+    with (
+        patch.dict("sys.modules", modules_dict),
+        patch("importlib.util.find_spec", return_value=mock_spec),
+    ):
+        train_qlora.run_training(
+            variant="c",
+            dry_run=False,
+            output_dir=out_dir,
+        )
+        mock_automodel.from_pretrained.assert_called_once()
+        _, kwargs = mock_automodel.from_pretrained.call_args
+        assert kwargs.get("attn_implementation") == "flash_attention_2"
+
+    # Test fallback to sdpa when flash_attn is not available
+    mock_automodel.from_pretrained.reset_mock()
+    out_dir_sdpa = str(tmp_path / "out_sdpa")
+    with (
+        patch.dict("sys.modules", modules_dict),
+        patch("importlib.util.find_spec", return_value=None),
+    ):
+        train_qlora.run_training(
+            variant="c",
+            dry_run=False,
+            output_dir=out_dir_sdpa,
+        )
+        mock_automodel.from_pretrained.assert_called_once()
+        _, kwargs = mock_automodel.from_pretrained.call_args
+        assert kwargs.get("attn_implementation") == "sdpa"

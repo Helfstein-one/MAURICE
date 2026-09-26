@@ -13,6 +13,7 @@ Includes fallback/dry-run mode for non-CUDA or mock execution environments.
 """
 
 import argparse
+import importlib.util
 import json
 import os
 from typing import Any
@@ -105,11 +106,16 @@ def run_training(
             from peft import LoraConfig, get_peft_model
             from transformers import AutoModelForCausalLM
 
+            has_flash_attn = importlib.util.find_spec("flash_attn") is not None
+            attn_implementation = "flash_attention_2" if has_flash_attn else "sdpa"
+            print(f"Using attention implementation: {attn_implementation}")
+
             tokenizer = AutoTokenizer.from_pretrained(base_model)
             model = AutoModelForCausalLM.from_pretrained(
                 base_model,
                 load_in_4bit=config["training"].get("load_in_4bit", True),
                 device_map="auto" if torch.cuda.is_available() else None,
+                attn_implementation=attn_implementation,
             )
             peft_config = LoraConfig(
                 r=config["lora"]["r"],
