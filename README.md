@@ -202,7 +202,8 @@ MAURICE/
 ├── ollama/                    # Manifestos (Modelfiles) do Ollama para as variantes c, r, g
 ├── scripts/                   # Scripts standalone e servidor FastAPI vLLM
 ├── tests/                     # Suite de Pytest (Mocks de HuggingFace, FastAPI, etc)
-├── pyproject.toml             # Configuração do ecossistema via Poetry
+├── ui/
+│   └── app.py                 # Streamlit interactive visualizer & reasoning UI├── pyproject.toml             # Configuração do ecossistema via Poetry
 ├── Containerfile              # Runtime Glibc padronizado Docker/Podman
 └── README.md                  # Esta documentação rica
 ```
