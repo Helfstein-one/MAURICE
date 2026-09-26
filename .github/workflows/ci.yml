@@ -296,7 +296,7 @@ jobs:
 
       - name: Install Test Dependencies
         run: |
-          pip install pytest fastapi uvicorn httpx
+          pip install pytest fastapi uvicorn "httpx<0.28.0"
           pip install -e . 2>/dev/null || true
 
       - name: Run Pytest Suite
