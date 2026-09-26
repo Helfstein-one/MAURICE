@@ -96,7 +96,7 @@ def load_model() -> None:
             )
             server_state.vllm_engine = AsyncLLMEngine.from_engine_args(engine_args)
             logger.info("vLLM AsyncLLMEngine initialized successfully.")
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001  # noqa: BLE001
             logger.warning(f"Could not initialize vLLM engine ({e}). Starting in fallback mode.")
             server_state.vllm_engine = None
 
@@ -120,11 +120,11 @@ def load_model() -> None:
                 try:
                     server_state.model = torch.compile(server_state.model)
                     logger.info("torch.compile() applied successfully.")
-                except Exception as e:  # noqa: BLE001
+                except Exception as e:  # noqa: BLE001  # noqa: BLE001
                     logger.warning(f"torch.compile() failed: {e}")
 
             logger.info(f"HF Model {model_name_or_path} loaded successfully.")
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001  # noqa: BLE001
             logger.warning(f"Could not load HF model ({e}). Starting in fallback mode.")
 
 
