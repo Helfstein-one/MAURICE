@@ -10,3 +10,9 @@ build/
 checkpoints/
 data/processed/*
 !data/processed/.gitkeep
+
+.agents/
+.jules/
+fix_ci.py
+patch.diff
+update_*.py
