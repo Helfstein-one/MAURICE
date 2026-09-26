@@ -12,6 +12,7 @@ from maurice.eval import main as eval_main
 from maurice.merge import main as merge_main
 from maurice.prepare import main as prepare_main
 from maurice.serve import main as serve_main
+from maurice.synth import main as synth_main
 from maurice.train import main as train_main
 
 
@@ -95,6 +96,15 @@ def main(args_list: list[str] | None = None):
     eval_parser.add_argument("--input-json", type=str, default=None)
     eval_parser.add_argument("--analyze", action="store_true")
 
+    # synth-prefs
+    synth_parser = subparsers.add_parser("synth-prefs", help="Synthesize preference dataset using RLAIF")
+    synth_parser.add_argument("--variant", choices=["c", "r", "g", "all"], default="c")
+    synth_parser.add_argument("--input-file", type=str, default=None)
+    synth_parser.add_argument("--output-file", type=str, default=None)
+    synth_parser.add_argument("--num-responses", type=int, default=2)
+    synth_parser.add_argument("--engine", choices=["hf", "vllm", "mock"], default="mock")
+    synth_parser.add_argument("--dry-run", action="store_true")
+
     # serve
     serve_parser = subparsers.add_parser("serve", help="Launch FastAPI inference server")
     serve_parser.add_argument("--variant", choices=["c", "r", "g"], default="c")
@@ -169,6 +179,22 @@ def main(args_list: list[str] | None = None):
         if parsed_args.analyze:
             e_args.append("--analyze")
         eval_main(e_args)
+
+    elif sub == "synth-prefs":
+        synth_args = []
+        if parsed_args.variant:
+            synth_args.extend(["--variant", parsed_args.variant])
+        if parsed_args.input_file:
+            synth_args.extend(["--input-file", parsed_args.input_file])
+        if parsed_args.output_file:
+            synth_args.extend(["--output-file", parsed_args.output_file])
+        if parsed_args.num_responses:
+            synth_args.extend(["--num-responses", str(parsed_args.num_responses)])
+        if parsed_args.engine:
+            synth_args.extend(["--engine", parsed_args.engine])
+        if parsed_args.dry_run:
+            synth_args.append("--dry-run")
+        synth_main(synth_args)
 
     elif sub == "serve":
         s_args = [
