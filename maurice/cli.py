@@ -54,7 +54,8 @@ def main():
     parser_synth.add_argument("--variant", choices=["c", "r", "g"], required=True, help="Model variant")
     parser_synth.add_argument("--input", type=str, help="Input SFT dataset")
     parser_synth.add_argument("--output", type=str, help="Output preference dataset")
-
+    parser_synth.add_argument("--samples", type=int, default=-1, help="Number of samples to process")
+    parser_synth.add_argument("--dry-run", action="store_true", help="Run in dry-run mode")
     # maurice align
     parser_align = subparsers.add_parser("align", help="Run Post-SFT alignment (DPO/ORPO)")
     parser_align.add_argument("--variant", choices=["c", "r", "g"], required=True, help="Target variant")
