@@ -150,6 +150,21 @@ A arquitetura do `Modelfile` já embute o *System Prompt* rigoroso, os parâmetr
 
 ---
 
+
+## 🖥️ Streamlit Interactive UI
+
+O MAURICE inclui uma interface gráfica (Web UI) construída em **Streamlit** para visualização e interação direta com os modelos.
+
+```bash
+# Iniciar a interface
+streamlit run ui/app.py
+```
+Essa interface é fundamental para:
+1. **Visualizar o Raciocínio (Reasoning):** Ao usar a variante `r`, a UI formata automaticamente e separa o bloco `<think>...</think>` do output final, permitindo que você entenda o processo lógico do modelo de forma didática.
+2. **Avaliação Humana Rápida:** Funciona como um playground de chat interativo local.
+
+---
+
 ## 🔄 Quickstart & Makefile Orchestration
 
 Você também pode orquestrar todas as etapas usando o `Makefile` root:
