@@ -165,3 +165,94 @@ def test_cli_parse_args():
         assert args.port == 9000
         assert args.variant == "r"
         assert args.backend == "mock"
+
+
+def test_cli_parse_args_engine_vllm():
+    test_args = [
+        "06_serve_model.py",
+        "--variant",
+        "r",
+        "--engine",
+        "vllm",
+    ]
+    with patch("sys.argv", test_args):
+        args = serve_model.parse_args()
+        assert args.variant == "r"
+        assert args.engine == "vllm"
+
+
+def test_vllm_chat_completions_mock_fallback():
+    serve_model.server_state.engine = "vllm"
+    serve_model.server_state.backend = "vllm"
+    serve_model.server_state.vllm_engine = None
+
+    with TestClient(serve_model.app) as client:
+        payload = {
+            "model": "mau-llm-1.0-r",
+            "messages": [{"role": "user", "content": "Test reasoning"}],
+            "stream": False,
+        }
+        response = client.post("/v1/chat/completions", json=payload)
+        assert response.status_code == 200
+        data = response.json()
+        assert "vLLM" in data["choices"][0]["message"]["content"] or "mock" in data["choices"][0]["message"]["content"]
+
+
+def test_vllm_engine_generation_mocked():
+    serve_model.server_state.engine = "vllm"
+    serve_model.server_state.backend = "vllm"
+
+    class MockOutputText:
+        def __init__(self, text: str):
+            self.text = text
+
+    class MockRequestOutput:
+        def __init__(self, text: str):
+            self.outputs = [MockOutputText(text)]
+
+    class MockVLLMEngine:
+        async def generate(self, prompt, sampling_params, request_id):
+            yield MockRequestOutput("step 1: reasoning ")
+            yield MockRequestOutput("step 1: reasoning step 2: result")
+
+    with TestClient(serve_model.app) as client:
+        serve_model.server_state.vllm_engine = MockVLLMEngine()
+        payload = {
+            "model": "mau-llm-1.0-r",
+            "messages": [{"role": "user", "content": "Solve math problem"}],
+            "stream": False,
+        }
+        response = client.post("/v1/chat/completions", json=payload)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["choices"][0]["message"]["content"] == "step 1: reasoning step 2: result"
+
+
+def test_vllm_streaming_generation_mocked():
+    serve_model.server_state.engine = "vllm"
+    serve_model.server_state.backend = "vllm"
+
+    class MockOutputText:
+        def __init__(self, text: str):
+            self.text = text
+
+    class MockRequestOutput:
+        def __init__(self, text: str):
+            self.outputs = [MockOutputText(text)]
+
+    class MockVLLMEngine:
+        async def generate(self, prompt, sampling_params, request_id):
+            yield MockRequestOutput("Hello ")
+            yield MockRequestOutput("Hello world!")
+
+    with TestClient(serve_model.app) as client:
+        serve_model.server_state.vllm_engine = MockVLLMEngine()
+        payload = {
+            "model": "mau-llm-1.0-r",
+            "messages": [{"role": "user", "content": "Hello"}],
+            "stream": True,
+        }
+        response = client.post("/v1/chat/completions", json=payload)
+        assert response.status_code == 200
+        assert "text/event-stream" in response.headers["content-type"]
+        assert "Hello" in response.text
