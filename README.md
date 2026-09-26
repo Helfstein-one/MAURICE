@@ -416,14 +416,14 @@ Após compilar o modelo (ou testar a pipeline), você pode interagir com ele nat
 Use o `Modelfile` preparado e aponte para o arquivo GGUF gerado no diretório `build/`.
 
 ```bash
-ollama create MAURICE-c -f ollama/Modelfile.c
+ollama create mau-llm-1.0-c -f ollama/Modelfile.c
 ```
 
 **2. Rode o modelo no seu terminal:**
 O modelo agora está integrado e persistido localmente. Converse com ele diretamente via shell:
 
 ```bash
-ollama run MAURICE-c "escreva um hello world em python"
+ollama run mau-llm-1.0-c "escreva um hello world em python"
 ```
 
 A arquitetura do `Modelfile` já embute o *System Prompt* correto, os parâmetros de *temperature* ideais e suporta conversas contínuas mantendo o contexto.
