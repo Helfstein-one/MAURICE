@@ -3,6 +3,8 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
+import maurice.prepare
+
 # Dynamically import scripts/01_prepare_datasets.py
 script_path = Path(__file__).parent.parent / "scripts" / "01_prepare_datasets.py"
 spec = importlib.util.spec_from_file_location("prepare_datasets", script_path)
@@ -163,7 +165,7 @@ def test_main_cli():
             "sys.argv",
             ["01_prepare_datasets.py", "--variant", "c", "--sample-size", "2"],
         ),
-        patch.object(prepare_datasets, "process_variant", return_value=2) as mock_proc,
+        patch.object(maurice.prepare, "process_variant", return_value=2) as mock_proc,
     ):
         prepare_datasets.main()
         assert mock_proc.called

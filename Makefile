@@ -1,52 +1,53 @@
-.PHONY: all prepare train merge quantize eval serve clean help test dry-run lint quality-gates mcp-server
+.PHONY: all prepare train merge quantize eval serve ui clean help test dry-run lint quality-gates mcp-server
 
+MAURICE ?= maurice
 PYTHON ?= python3
-VARIANT ?= all
 PORT ?= 8000
+VARIANT ?= c
 
 all: prepare train merge quantize eval
 
 prepare:
-	$(PYTHON) scripts/01_prepare_datasets.py --variant $(VARIANT)
+	$(MAURICE) prepare --variant $(VARIANT)
 
 train:
 	@if [ "$(VARIANT)" = "all" ]; then \
-		$(PYTHON) scripts/02_train_qlora.py --variant c; \
-		$(PYTHON) scripts/02_train_qlora.py --variant r; \
-		$(PYTHON) scripts/02_train_qlora.py --variant g; \
+		$(MAURICE) train --variant c; \
+		$(MAURICE) train --variant r; \
+		$(MAURICE) train --variant g; \
 	else \
-		$(PYTHON) scripts/02_train_qlora.py --variant $(VARIANT); \
+		$(MAURICE) train --variant $(VARIANT); \
 	fi
 
 merge:
 	@if [ "$(VARIANT)" = "all" ]; then \
-		$(PYTHON) scripts/03_merge_weights.py --variant c; \
-		$(PYTHON) scripts/03_merge_weights.py --variant r; \
-		$(PYTHON) scripts/03_merge_weights.py --variant g; \
+		$(MAURICE) merge --variant c; \
+		$(MAURICE) merge --variant r; \
+		$(MAURICE) merge --variant g; \
 	else \
-		$(PYTHON) scripts/03_merge_weights.py --variant $(VARIANT); \
+		$(MAURICE) merge --variant $(VARIANT); \
 	fi
 
 quantize:
 	@if [ "$(VARIANT)" = "all" ]; then \
-		bash scripts/04_quantize_imatrix.sh c; \
-		bash scripts/04_quantize_imatrix.sh r; \
-		bash scripts/04_quantize_imatrix.sh g; \
+		$(MAURICE) quantize --variant c; \
+		$(MAURICE) quantize --variant r; \
+		$(MAURICE) quantize --variant g; \
 	else \
-		bash scripts/04_quantize_imatrix.sh $(VARIANT); \
+		$(MAURICE) quantize --variant $(VARIANT); \
 	fi
 
 eval:
-	$(PYTHON) scripts/05_benchmark_eval.py --variant $(VARIANT)
+	$(MAURICE) eval --variant $(VARIANT)
 
 serve:
-	$(PYTHON) scripts/06_serve_model.py --variant $(or $(VARIANT),c) --port $(or $(PORT),8000)
+	$(MAURICE) serve --variant $(VARIANT) --port $(PORT)
 
 dry-run:
-	$(PYTHON) scripts/01_prepare_datasets.py --variant all --dry-run
-	$(PYTHON) scripts/02_train_qlora.py --variant c --dry-run
-	$(PYTHON) scripts/03_merge_weights.py --variant c --dry-run
-	$(PYTHON) scripts/05_benchmark_eval.py --variant all --dry-run
+	$(MAURICE) prepare --variant all --dry-run
+	$(MAURICE) train --variant c --dry-run
+	$(MAURICE) merge --variant c --dry-run
+	$(MAURICE) eval --variant all --dry-run
 	$(PYTHON) -m py_compile scripts/06_serve_model.py
 	$(PYTHON) -m py_compile scripts/08_mcp_quality_gates.py
 
@@ -64,7 +65,7 @@ lint:
 	ruff format --check .
 
 ui:
-	streamlit run ui/app.py
+	$(MAURICE) ui
 
 clean:
 	rm -rf checkpoints/ build/ results/
@@ -81,7 +82,7 @@ help:
 	@echo '  merge      Merge adapter weights into base model'
 	@echo '  quantize   Convert to GGUF and quantize with imatrix'
 	@echo '  eval       Run benchmark evaluation'
-	@echo '  serve      Start FastAPI inference server for specified variant'
+	@echo '  serve      Launch FastAPI inference server'
 	@echo '  dry-run    Smoke test entire pipeline without GPU'
 	@echo '  test          Run pytest suite'
 	@echo '  lint          Run ruff linter'
