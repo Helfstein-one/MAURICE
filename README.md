@@ -194,6 +194,13 @@ Evaluation is driven by `scripts/05_benchmark_eval.py`, measuring real-time infe
 | **x86_64 CPU (AVX-512)** | **112.0 t/s** | **17.8 ms** | 1,420 MB |
 | **x86_64 CPU (AVX2)** | **84.5 t/s** | **18.2 ms** | 1,450 MB |
 
+
+### Evolução Arquitetural de Alta Performance (Roadmap)
+Para garantir inferência em tempo real e uso em produção (Edge/Cloud), estamos implementando:
+- **`vLLM` / `TensorRT-LLM` Engine:** Substituir a inferência nativa do Transformers pelo Continuous Batching e PagedAttention.
+- **`Flash Attention 2`:** Aceleração a nível de kernel para atenção em modelos de 4096+ tokens.
+- **`torch.compile()`:** Integração ativa nos scripts nativos (`maurice/serve.py`) para otimização do grafo computacional no PyTorch 2.x.
+
 ### Domain Evaluation Metrics
 
 | Variant | Target Specialization | Primary Evaluation Benchmark | Key Performance Indicator |
@@ -203,6 +210,27 @@ Evaluation is driven by `scripts/05_benchmark_eval.py`, measuring real-time infe
 | `mau-llm-1.0-g` | General Purpose | MT-Bench Subset | **8.72 / 10 Score** \| **96.5% Adaptive Thinking Suppression** |
 
 ---
+
+
+## Fundamentos Matemáticos (MAURICE)
+
+### Atualização de Pesos (QLoRA)
+No MAURICE, evitamos o *Full Finetuning* (que atualizaria todos os parâmetros $\Phi$) e utilizamos **QLoRA** (Quantized Low-Rank Adaptation). O modelo base é congelado em 4-bit, e treinamos apenas matrizes de baixo posto (Low-Rank) $A$ e $B$:
+
+$$ W_{new} = W_0 + \Delta W = W_0 + rac{\alpha}{r} (B \times A) $$
+
+Onde:
+- $W_0$ é a matriz original congelada em 4-bit NormalFloat (NF4).
+- $B \in \mathbb{R}^{d \times r}$ e $A \in \mathbb{R}^{r \times k}$ são as matrizes treináveis em FP16/BF16.
+- $r$ é o rank (no MAURICE, usamos $r=16$).
+- $\alpha$ é o fator de escala (usamos $\alpha=16$).
+
+### Complexidade de Memória (VRAM)
+A otimização matemática reflete diretamente na performance e exigência de hardware:
+- **Full Finetuning (1.5B parâmetros):** $\approx 1.5B \times 4 \text{ bytes (FP32)} \times 4 \text{ (Adam Optimizer states)} \approx 24 \text{ GB VRAM}$
+- **MAURICE QLoRA (1.5B parâmetros):** $\approx 1.5B \times 0.5 \text{ bytes (4-bit)} + \text{Adapter Memory} \approx 1.8 \text{ GB VRAM}$
+
+Essa redução drástica ($\sim 92\%$) permite que as 3 famílias de modelos sejam treinadas em GPUs edge e de consumo.
 
 ## Inference, Serving & UI
 
@@ -284,6 +312,100 @@ poetry shell
 ```
 
 ---
+
+
+## Fluxo de Treinamento e Transformação (Pipeline)
+
+O processo de construção das 3 famílias de modelos (`c`, `r`, `g`) flui através da seguinte arquitetura de dados e transformação de estados:
+
+```mermaid
+flowchart TD
+    %% Nós de Origem
+    RawData[(Dataset Bruto)]
+    BaseModel((Base Model: DeepSeek-1.5B))
+    
+    %% Preparação
+    subgraph Prepare [CLI: maurice prepare]
+        D_C[Dataset: Code]
+        D_R[Dataset: Reasoning]
+        D_G[Dataset: General]
+    end
+    
+    %% Treinamento QLoRA
+    subgraph Train [CLI: maurice train]
+        L_C[LoRA Adapter: mau-c]
+        L_R[LoRA Adapter: mau-r]
+        L_G[LoRA Adapter: mau-g]
+    end
+    
+    %% Merge de Pesos
+    subgraph Merge [CLI: maurice merge]
+        M_C[Merged Model FP16: C]
+        M_R[Merged Model FP16: R]
+        M_G[Merged Model FP16: G]
+    end
+    
+    %% Quantização
+    subgraph Quantize [CLI: maurice quantize]
+        Q_C[[GGUF Q4_K_M: Code]]
+        Q_R[[GGUF Q4_K_M: Reasoning]]
+        Q_G[[GGUF Q4_K_M: General]]
+    end
+
+    %% Roteamento
+    RawData --> Prepare
+    Prepare --> D_C & D_R & D_G
+    
+    D_C --> L_C
+    D_R --> L_R
+    D_G --> L_G
+    
+    BaseModel -. "NF4 Freeze" .-> Train
+    
+    L_C --> M_C
+    L_R --> M_R
+    L_G --> M_G
+    BaseModel -. "FP16" .-> Merge
+    
+    M_C --> Q_C
+    M_R --> Q_R
+    M_G --> Q_G
+```
+
+
+## Como Replicar o Treinamento (Walkthrough Prático)
+
+Graças à CLI unificada `maurice`, replicar a criação dos modelos é determinístico.
+
+### Requisitos de Hardware
+- **VRAM (Treinamento):** Mínimo de 6 GB VRAM (NVIDIA RTX 3060, 4060, T4, L4 ou Mac M-Series Unified Memory).
+- **RAM (Quantização):** 16 GB.
+
+### Passo-a-Passo: Treinando a Variante de Código (`c`)
+
+**1. Preparar o dataset (Filtro e formatação ChatML)**
+```bash
+maurice prepare --variant c
+# Tempo esperado: < 1 minuto
+```
+
+**2. Treinar o Adapter QLoRA**
+```bash
+maurice train --variant c --batch-size 4
+# Tempo esperado: ~45 min (em RTX 4090) a 2h (em Mac M2)
+```
+
+**3. Fazer o Merge (Consolidar pesos)**
+```bash
+maurice merge --variant c
+# Tempo esperado: ~2 minutos
+```
+
+**4. Quantizar para Edge (GGUF + imatrix)**
+```bash
+maurice quantize --variant c
+# Gera o arquivo binário leve pronto para Ollama/llama.cpp
+```
 
 ## Quickstart & Makefile Orchestration
 
