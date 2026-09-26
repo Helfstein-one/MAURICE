@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 def load_jsonl(filepath: str) -> list[dict]:
-    data = []
+    data: list[dict] = []
     if not os.path.exists(filepath):
         logger.warning(f"File {filepath} not found.")
         return data

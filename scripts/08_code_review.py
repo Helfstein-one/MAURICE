@@ -175,7 +175,7 @@ def apply_refactoring_to_files(
     repo_dir: str = ".",
 ) -> list[str]:
     """Applies verified refactored code to target files in repo_dir."""
-    modified_files = []
+    modified_files: list[str] = []
     refactored_code = review_result.get("refactored_code")
     is_safe = review_result.get("is_safe", False)
 
@@ -273,7 +273,7 @@ def process_pr_event(
     model_output = query_mau_model(prompt, server_url=server_url)
     review_result = parse_review_response(model_output)
 
-    modified_files = []
+    modified_files: list[str] = []
     committed = False
 
     if review_result["is_safe"] and review_result["refactored_code"]:
