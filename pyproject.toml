@@ -8,6 +8,10 @@ version = "1.0.0"
 description = "Minimal Adaptation for Ultra-fast Reasoning and Inference in Code Engines"
 authors = ["Maurício Helfstein Gonçalves"]
 readme = "README.md"
+packages = [{include = "maurice"}]
+
+[tool.poetry.scripts]
+maurice = "maurice.cli:main"
 
 [tool.poetry.dependencies]
 fastapi = "^0.100.0"
