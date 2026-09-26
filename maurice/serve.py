@@ -49,11 +49,22 @@ def load_model() -> None:
     model_name_or_path = "maurice-final"  # Default model path
     try:
         tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
+
         model = AutoModelForCausalLM.from_pretrained(
             model_name_or_path,
             torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
             device_map="auto" if torch.cuda.is_available() else None,
         ).to(device)
+        
+        # Optimize performance for PyTorch 2.x using torch.compile
+        if hasattr(torch, "compile"):
+            logger.info("Optimizing model with torch.compile()...")
+            try:
+                model = torch.compile(model)
+                logger.info("torch.compile() applied successfully.")
+            except Exception as e:
+                logger.warning(f"torch.compile() failed (safe to ignore): {e}")
+
         logger.info(f"Model {model_name_or_path} loaded successfully.")
     except Exception as e:  # noqa: BLE001
         logger.warning(f"Could not load model {model_name_or_path}: {e}")
