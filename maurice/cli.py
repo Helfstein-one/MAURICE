@@ -65,31 +65,40 @@ def main():
 
     if args.command == "prepare":
         from maurice.prepare import main as prep_main
+
         prep_main(sys.argv[2:])
     elif args.command == "train":
         from maurice.train import main as train_main
+
         train_main(sys.argv[2:])
     elif args.command == "merge":
         from maurice.merge import main as merge_main
+
         merge_main(sys.argv[2:])
     elif args.command == "eval":
         from maurice.eval import main as eval_main
+
         eval_main(sys.argv[2:])
     elif args.command == "quantize":
         print(f"Quantizing variant {args.variant} (delegating to shell script)...")
         import subprocess
-        subprocess.run(["bash", "scripts/04_quantize_imatrix.sh", args.variant])
+
+        subprocess.run(["bash", "scripts/04_quantize_imatrix.sh", args.variant], check=False)
     elif args.command == "serve":
         from maurice.serve import main as serve_main
+
         serve_main(sys.argv[2:])
     elif args.command == "ui":
         import subprocess
-        subprocess.run(["streamlit", "run", "ui/app.py"])
+
+        subprocess.run(["streamlit", "run", "ui/app.py"], check=False)
     elif args.command == "synth-prefs":
         from maurice.synth import main as synth_main
+
         synth_main(sys.argv[2:])
     elif args.command == "align":
         from maurice.align import main as align_main
+
         align_main(sys.argv[2:])
     else:
         parser.print_help()

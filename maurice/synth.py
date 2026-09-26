@@ -9,14 +9,12 @@ import argparse
 import json
 import logging
 import os
-import random
-from typing import Any
 
-import torch
 from tqdm import tqdm
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 def load_jsonl(filepath: str) -> list[dict]:
     data = []
@@ -29,12 +27,13 @@ def load_jsonl(filepath: str) -> list[dict]:
                 data.append(json.loads(line))
     return data
 
+
 def save_jsonl(data: list[dict], filepath: str) -> None:
     os.makedirs(os.path.dirname(filepath), exist_ok=True)
     with open(filepath, "w", encoding="utf-8") as f:
-        for item in data:
-            f.write(json.dumps(item) + "\n")
+        f.writelines(json.dumps(item) + "\n" for item in data)
     logger.info(f"Saved {len(data)} preference pairs to {filepath}")
+
 
 def generate_mock_responses(prompt: str, variant: str) -> list[str]:
     # In a real scenario, this would query vLLM or OpenAI API.
@@ -55,10 +54,12 @@ def generate_mock_responses(prompt: str, variant: str) -> list[str]:
             "I don't know the answer to that.",
         ]
 
+
 def judge_responses(prompt: str, responses: list[str]) -> tuple[str, str]:
     # Mock LLM-as-a-Judge: we assume the first generated response is always better in our mock logic.
     # A real implementation would ask a Judge LLM to output a score from 1 to 10 for each response.
     return responses[0], responses[1]
+
 
 def run_synthesis(variant: str, input_file: str | None = None, output_file: str | None = None, sample_size: int = -1):
     if not input_file:
@@ -78,7 +79,7 @@ def run_synthesis(variant: str, input_file: str | None = None, output_file: str 
         dataset = dataset[:sample_size]
 
     prefs_dataset = []
-    
+
     for item in tqdm(dataset, desc="Synthesizing preferences"):
         # Extract user prompt from ChatML format
         prompt = ""
@@ -86,25 +87,28 @@ def run_synthesis(variant: str, input_file: str | None = None, output_file: str 
             if msg.get("role") == "user":
                 prompt = msg.get("content", "")
                 break
-        
+
         if not prompt:
             continue
 
         # Generate candidates
         candidates = generate_mock_responses(prompt, variant)
-        
+
         # Score candidates
         chosen, rejected = judge_responses(prompt, candidates)
 
         # Create Preference Pair
-        prefs_dataset.append({
-            "prompt": prompt,
-            "chosen": [{"role": "user", "content": prompt}, {"role": "assistant", "content": chosen}],
-            "rejected": [{"role": "user", "content": prompt}, {"role": "assistant", "content": rejected}],
-        })
+        prefs_dataset.append(
+            {
+                "prompt": prompt,
+                "chosen": [{"role": "user", "content": prompt}, {"role": "assistant", "content": chosen}],
+                "rejected": [{"role": "user", "content": prompt}, {"role": "assistant", "content": rejected}],
+            }
+        )
 
     save_jsonl(prefs_dataset, output_file)
     logger.info("RLAIF Synthesis completed successfully.")
+
 
 def main(args_list: list[str] | None = None):
     parser = argparse.ArgumentParser(description="MAURICE RLAIF Synthesizer")
@@ -115,6 +119,7 @@ def main(args_list: list[str] | None = None):
     args = parser.parse_args(args_list)
 
     run_synthesis(args.variant, args.input, args.output, args.samples)
+
 
 if __name__ == "__main__":
     main()

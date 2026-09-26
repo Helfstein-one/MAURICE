@@ -11,11 +11,9 @@ import logging
 import os
 from typing import Any
 
-import torch
-from datasets import Dataset
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 def load_variant_config(variant: str, config_dir: str = "configs") -> dict[str, Any]:
     config_file = os.path.join(config_dir, f"variant_{variant}.json")
@@ -23,6 +21,7 @@ def load_variant_config(variant: str, config_dir: str = "configs") -> dict[str, 
         raise FileNotFoundError(f"Config file for variant '{variant}' not found at {config_file}")
     with open(config_file, "r", encoding="utf-8") as f:
         return json.load(f)
+
 
 def run_alignment(
     variant: str,
@@ -33,7 +32,7 @@ def run_alignment(
 ):
     if not dataset_file:
         dataset_file = f"data/processed/prefs_{variant}.jsonl"
-    
+
     if not output_dir:
         output_dir = f"checkpoints/aligned_{variant}_{method}"
 
@@ -66,7 +65,7 @@ def main(args_list: list[str] | None = None):
     parser.add_argument("--dataset", type=str, help="Input preference dataset (JSONL)")
     parser.add_argument("--output-dir", type=str, help="Directory to save aligned checkpoint")
     parser.add_argument("--dry-run", action="store_true", help="Run without executing heavy computations")
-    
+
     args = parser.parse_args(args_list)
     run_alignment(
         variant=args.variant,
@@ -75,6 +74,7 @@ def main(args_list: list[str] | None = None):
         output_dir=args.output_dir,
         dry_run=args.dry_run,
     )
+
 
 if __name__ == "__main__":
     main()
