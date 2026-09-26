@@ -172,7 +172,9 @@ def evaluate_prompt(
         if response_text is None:
             # Fallback to mock response if model binary is unavailable
             print(f"[{prompt_id}] Model weights/binary not available. Using simulated execution.")
-            response_text = str(item.get("mock_response", "")) if not simulate_failure else "Direct answer without think tags."
+            response_text = (
+                str(item.get("mock_response", "")) if not simulate_failure else "Direct answer without think tags."
+            )
 
     assert response_text is not None
     analysis = parse_and_validate_think_tags(response_text, expected_keywords=expected_keywords)
