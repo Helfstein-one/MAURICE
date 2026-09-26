@@ -116,6 +116,7 @@ def main(args_list: list[str] | None = None):
     parser.add_argument("--input", type=str, help="Input SFT dataset (JSONL)")
     parser.add_argument("--output", type=str, help="Output preference dataset (JSONL)")
     parser.add_argument("--samples", type=int, default=-1, help="Number of samples to process")
+    parser.add_argument("--dry-run", action="store_true", help="Run in dry-run mode")
     args = parser.parse_args(args_list)
 
     run_synthesis(args.variant, args.input, args.output, args.samples)
