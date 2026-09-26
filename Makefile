@@ -1,4 +1,4 @@
-.PHONY: all prepare train merge quantize eval serve clean help test dry-run lint
+.PHONY: all prepare train merge quantize eval serve clean help test dry-run lint quality-gates mcp-server
 
 PYTHON ?= python3
 VARIANT ?= all
@@ -48,6 +48,13 @@ dry-run:
 	$(PYTHON) scripts/03_merge_weights.py --variant c --dry-run
 	$(PYTHON) scripts/05_benchmark_eval.py --variant all --dry-run
 	$(PYTHON) -m py_compile scripts/06_serve_model.py
+	$(PYTHON) -m py_compile scripts/08_mcp_quality_gates.py
+
+quality-gates:
+	$(PYTHON) scripts/08_mcp_quality_gates.py --run-gates
+
+mcp-server:
+	$(PYTHON) scripts/08_mcp_quality_gates.py --port $(or $(PORT),8080)
 
 test:
 	pytest tests/ -v --tb=short
@@ -76,7 +83,9 @@ help:
 	@echo '  eval       Run benchmark evaluation'
 	@echo '  serve      Start FastAPI inference server for specified variant'
 	@echo '  dry-run    Smoke test entire pipeline without GPU'
-	@echo '  test       Run pytest suite'
-	@echo '  lint       Run ruff linter'
+	@echo '  test          Run pytest suite'
+	@echo '  lint          Run ruff linter'
+	@echo '  quality-gates Run quality & validation gates locally'
+	@echo '  mcp-server    Start local MCP Quality Gates server'
 	@echo '  ui         Run Streamlit UI'
 	@echo '  clean      Remove build artifacts'
