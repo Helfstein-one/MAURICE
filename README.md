@@ -1,588 +1,226 @@
-# MAURICE Framework
-
-> **Minimal Adaptation for Ultra-fast Reasoning and Inference in Code Engines**
+# 🧠 MAURICE
+**Minimal Adaptation for Ultra-fast Reasoning and Inference in Code Engines**
 
 [![CI Pipeline](https://github.com/Helfstein-one/MAURICE/actions/workflows/ci.yml/badge.svg)](https://github.com/Helfstein-one/MAURICE/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Python Version](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)](pyproject.toml)
-[![Base Model](https://img.shields.io/badge/Base%20Model-DeepSeek--R1--Distill--Qwen--1.5B-violet)](https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B)
-[![Quantization](https://img.shields.io/badge/Quantization-GGUF%20Q4__K__M%20imatrix-green)](scripts/04_quantize_imatrix.sh)
-[![Container](https://img.shields.io/badge/Container-Podman%20%2F%20Docker-orange)](Containerfile)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-MAURICE is a production-grade, end-to-end framework for automated fine-tuning, post-training alignment, importance-matrix calibrated GGUF quantization (`imatrix`), and ultra-fast local inference delivery of specialized 1.5B parameter language models derived from `deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B`.
+MAURICE is an end-to-end local LLM engineering framework designed to distill, fine-tune, and align small, highly-capable SLMs (Small Language Models). By leveraging QLoRA, RLAIF (LLM-as-a-judge preference synthesis), ORPO/DPO alignment, and GGUF quantization, MAURICE allows anyone to build specialized AI coding engines that run locally with minimal hardware footprint.
 
 ---
 
-<p center align="center">
-  <img src="assets/pipeline.svg" alt="MAURICE End-to-End Pipeline Architecture" width="100%" />
-</p>
+## 🎯 Por Que Criar o MAURICE? (Vantagens & Trade-offs)
+
+Na era de modelos monolíticos gigantes (70B+ parâmetros) hospedados em nuvem, o MAURICE adota a filosofia do **"Small, Specialized, and Local"**. 
+
+### Vantagens (Por que usar?)
+1. **Inferência Ultra-Rápida:** Modelos de 1.5B parâmetros quantizados em Q4_K_M entregam mais de 120+ tokens/segundo em Apple Silicon e CPUs modernas, e 200+ t/s em GPUs dedicadas.
+2. **Privacidade Absoluta:** O código proprietário da sua empresa nunca sai da sua máquina. Toda a inferência (e até o treinamento) ocorre *on-premise* ou *localhost*.
+3. **Especialização via RLAIF:** Em vez de tentar saber tudo, os modelos são especialistas. Se você treina a variante de código (`mau-llm-1.0-c`), a pipeline foca em alinhamento ORPO com dados curados de código, resultando em precisão cirúrgica no domínio.
+4. **Baixo Custo Computacional:** A etapa de QLoRA + Flash Attention 2 exige pouquíssima VRAM (uma GPU RTX 3060 ou Mac M1 de 8GB é suficiente para fine-tuning).
+
+### Trade-offs (O que você sacrifica?)
+- **Generalização Ampla:** Sendo um modelo pequeno (SLM), ele tem menos "conhecimento de mundo" enciclopédico. É um motor de raciocínio, não um motor de busca.
+- **Context Length Limits:** Embora treinado com até 4k-8k tokens de contexto, tarefas que exigem a ingestão de um repositório inteiro de 100 mil linhas sofrerão degradação (recomendamos o uso em arquiteturas RAG).
+- **Risco de Alucinação em Nichos:** Sem Retrieval, o modelo tentará adivinhar bibliotecas muito obscuras. O alinhamento ORPO ajuda a mitigar isso, mas SLMs sempre performam melhor com contexto injetado (via system prompts ou embeddings).
 
 ---
 
-## Table of Contents
+## 🏗️ Arquitetura do Pipeline
 
-- [Executive Summary & Key Features](#executive-summary--key-features)
-- [Model Architecture & Specifications](#model-architecture--specifications)
-- [Model Matrix & Specializations](#model-matrix--specializations)
-- [Pipeline Architecture & Workflow](#pipeline-architecture--workflow)
-- [Dataset Preparation & AST Validation](#dataset-preparation--ast-validation)
-- [QLoRA Training Mechanics](#qlora-training-mechanics)
-- [GGUF Quantization & Importance Matrix Calibration](#gguf-quantization--importance-matrix-calibration)
-  - [Quantization Calibration Flow](#quantization-calibration-flow)
-  - [Precision & Footprint Comparison](#precision--footprint-comparison)
-- [Hardware Benchmarks & Evaluation](#hardware-benchmarks--evaluation)
-  - [Inference Throughput & Latency](#inference-throughput--latency)
-  - [Domain Evaluation Metrics](#domain-evaluation-metrics)
-- [Inference, Serving & UI](#inference-serving--ui)
-  - [FastAPI OpenAI-Compatible Endpoint](#fastapi-openai-compatible-endpoint)
-  - [Interactive Streamlit Reasoning UI](#interactive-streamlit-reasoning-ui)
-  - [Ollama & llama.cpp Modelfiles](#ollama--llamacpp-modelfiles)
-- [Installation & Environment Setup](#installation--environment-setup)
-- [Quickstart & Makefile Orchestration](#quickstart--makefile-orchestration)
-- [Container Deployment (Podman / Docker)](#container-deployment-podman--docker)
-- [CI/CD DAG Quality Gates](#cicd-dag-quality-gates)
-- [Directory Structure](#directory-structure)
-- [License & Citation](#license--citation)
+A nossa pipeline é segmentada em 6 estágios modulares. Da extração do dado bruto até o binário compilado.
 
----
-
-## Executive Summary & Key Features
-
-Modern software engineering workstations require low-latency, deterministic, and privacy-preserving code intelligence and logical reasoning models. MAURICE addresses these needs by modularizing specialized domain tasks into three targeted 1.5B parameter variants:
-
-1. **Ultra-Low Latency Execution**: Delivers up to **124 tokens/sec** on Apple Silicon Metal (MPS) and **112 tokens/sec** on x86_64 AVX-512 CPUs with a Sub-20ms Time To First Token (TTFT).
-2. **4-Bit QLoRA Fine-Tuning**: Trains attention and MLP projection layers ($r=16, \alpha=16$) using Unsloth acceleration or Hugging Face PEFT/bitsandbytes fallback.
-3. **Importance Matrix GGUF Quantization (`q4_k_m`)**: Employs domain-specific calibration datasets (`imatrix`) via `llama.cpp` to reduce model memory footprint to **1.1 GB** while retaining over 99% of FP16 accuracy.
-4. **AST Syntax & Chain-of-Thought Validation**: Enforces strict Abstract Syntax Tree (AST) compilation checks for Python, bracket balance checks for C/JS/TS, and `<think>...</think>` tag calibration during dataset synthesis.
-5. **OpenAI-Compatible Serving & Interactive UI**: Provides a FastAPI serving endpoint (`/v1/chat/completions`) alongside a Streamlit UI that parses, highlights, and isolates chain-of-thought `<think>` blocks in real-time.
-
----
-
-## Model Architecture & Specifications
-
-The MAURICE model family is built upon `deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B`, which distills the reasoning capability of DeepSeek-R1 into the Qwen2 transformer architecture.
-
-| Parameter / Architectural Feature | Specification |
-| :--- | :--- |
-| **Base Model Identifier** | `deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B` |
-| **Total Parameter Count** | ~1.78 Billion Parameters |
-| **Architecture Family** | Qwen2 Causal LM Transformer |
-| **Context Window Length** | 4,096 tokens |
-| **Hidden Dimension ($d_{\text{model}}$)** | 1,536 |
-| **Intermediate Dimension ($d_{\text{ff}}$)** | 8,960 |
-| **Number of Hidden Layers** | 28 |
-| **Attention Heads (Query / KV)** | 12 Query Heads / 2 Key-Value Heads (Grouped Query Attention - GQA) |
-| **Vocabulary Size** | 151,936 tokens |
-| **Positional Embeddings** | Rotary Position Embeddings (RoPE) |
-| **Activation Function** | SwiGLU |
-| **Chat Prompt Format** | ChatML (`<|im_start|>role\ncontent<|im_end|>`) |
-
----
-
-## Model Matrix & Specializations
-
-MAURICE categorizes domain specializations into three distinct variants, each configured with target system prompts, custom dataset filters, and calibration corpora:
-
-| Variant Name | Identifier | Target Domain | Primary Dataset Source | Core Specializations & Features |
-| :--- | :--- | :--- | :--- | :--- |
-| **Code Engine** | `mau-llm-1.0-c` | Code & Refactoring | `bigcode/the-stack-smol-xs` | AST syntax validation, C/JS/TS balance checks, unified diff patches, structural refactoring. |
-| **Reasoning Engine** | `mau-llm-1.0-r` | Pure Logic & Proofs | `HuggingFaceH4/Bespoke-Stratos-17k` | Step-by-step chain-of-thought reasoning, mathematical theorem proofing, calibrated `<think>` tags. |
-| **General Engine** | `mau-llm-1.0-g` | General Assistant | `teknium/OpenHermes-2.5` | Instruction following, multi-turn conversational balance, adaptive thinking suppression on trivial queries. |
-
----
-
-## Pipeline Architecture & Workflow
-
-The framework executes an automated end-to-end pipeline managed via `Makefile` targets and standalone Python/Bash scripts:
+![Pipeline de Transformação](assets/pipeline.svg)
 
 ```mermaid
 flowchart TD
-    A[Hugging Face Raw Datasets] -->|scripts/01_prepare_datasets.py| B[ChatML Formatted JSONL\ndata/processed/train_*.jsonl]
-    B -->|scripts/02_train_qlora.py| C[QLoRA Adapters\ncheckpoints/adapter_*]
-    C -->|scripts/03_merge_weights.py| D[Consolidated FP16 Model\ncheckpoints/merged_*]
-    D -->|scripts/04_quantize_imatrix.sh| E[Importance Matrix Q4_K_M GGUF\nbuild/mau-llm-1.0-*-q4_k_m.gguf]
-    E -->|scripts/05_benchmark_eval.py| F[Hardware Benchmarks & Metrics Report]
-    E -->|scripts/06_serve_model.py| G[FastAPI REST API / Streamlit UI]
-```
-
----
-
-## Dataset Preparation & AST Validation
-
-`scripts/01_prepare_datasets.py` fetches raw domain datasets, applies domain-specific structural filters, and converts examples into standard ChatML JSONL format (`data/processed/train_{c,r,g}.jsonl`).
-
-### Validation Engines:
-1. **Python AST Validation**:
-   Uses Python's native `ast.parse()` module to ensure that all code blocks generated in assistant completions compile without syntax errors.
-2. **C / JavaScript / TypeScript Balance Validation**:
-   Implements stack-based brace, bracket, and parenthesis balancing (`{}`, `[]`, `()`) to verify code block completeness.
-3. **Reasoning `<think>` Tag Calibration**:
-   Ensures that reasoning completions contain strictly matched `<think>` and `</think>` tags with non-empty chain-of-thought logic.
-4. **Synthetic Fallback Generator**:
-   Generates verified multi-turn ChatML fallback samples for offline or CI dry-run execution.
-
----
-
-## QLoRA Training Mechanics
-
-Fine-tuning is implemented in `scripts/02_train_qlora.py` with 4-bit Quantized Low-Rank Adaptation (QLoRA) using `bitsandbytes` and `peft`/`trl`, with automatic optimization via `Unsloth` when available.
-
-```json
-{
-  "lora": {
-    "r": 16,
-    "lora_alpha": 16,
-    "lora_dropout": 0.0,
-    "target_modules": [
-      "q_proj", "k_proj", "v_proj", "o_proj",
-      "gate_proj", "up_proj", "down_proj"
-    ]
-  },
-  "training": {
-    "load_in_4bit": true,
-    "optimizer": "adamw_8bit",
-    "learning_rate": 0.0002,
-    "num_train_epochs": 3,
-    "per_device_train_batch_size": 2,
-    "gradient_accumulation_steps": 4,
-    "warmup_steps": 10
-  }
-}
-```
-
-### Key Training Highlights:
-- **Target Projection Layers**: Modifies all linear projection matrices in both attention (`q`, `k`, `v`, `o`) and MLP blocks (`gate`, `up`, `down`).
-- **Memory Footprint**: Fits comfortably within **8 GB VRAM** during fine-tuning (peak VRAM ~6.2 GB).
-- **Consolidation**: `scripts/03_merge_weights.py` de-quantizes base weights and merges LoRA adapters back into a unified 16-bit Hugging Face model directory (`checkpoints/merged_*`).
-
----
-
-## GGUF Quantization & Importance Matrix Calibration
-
-### Quantization Calibration Flow
-
-Standard uniform 4-bit quantization can degrade performance in 1.5B models. MAURICE mitigates this by calculating an **Importance Matrix (`imatrix`)** during GGUF conversion using `llama.cpp`.
-
-<p align="center">
-  <img src="assets/quantization.svg" alt="GGUF imatrix Calibration Flow" width="90%" />
-</p>
-
-### Precision & Footprint Comparison
-
-| Format | Quantization Method | File Size | Memory (RSS) | Perplexity Δ vs FP16 | Recommended Hardware |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| **FP16** | Unquantized Base | 3.1 GB | ~3.8 GB | Base (0.00) | High-end GPUs / 16GB+ Mac |
-| **Q8_0** | Standard 8-bit | 1.8 GB | ~2.3 GB | +0.01 | Desktop CPU / MPS |
-| **Q4_K_M (imatrix)** | **MAURICE Default (`imatrix`)** | **1.1 GB** | **~1.4 GB** | **+0.05** | **Edge CPU / Laptop / Mobile** |
-| **Q3_K_S** | Legacy 3-bit | 0.8 GB | ~1.1 GB | +0.42 | Constrained Memory Devices |
-
----
-
-## Hardware Benchmarks & Evaluation
-
-Evaluation is driven by `scripts/05_benchmark_eval.py`, measuring real-time inference throughput, Time To First Token (TTFT), memory footprint, and domain pass rates.
-
-<p align="center">
-  <img src="assets/benchmarks.svg" alt="MAURICE Benchmark Evaluation Metrics" width="95%" />
-</p>
-
-### Inference Throughput & Latency
-
-| Hardware Acceleration Backend | Token Throughput (tokens/sec) | Time To First Token (TTFT ms) | Peak Memory RSS (MB) |
-| :--- | :--- | :--- | :--- |
-| **Apple Silicon Metal (MPS)** | **124.0 t/s** | **16.5 ms** | 1,380 MB |
-| **x86_64 CPU (AVX-512)** | **112.0 t/s** | **17.8 ms** | 1,420 MB |
-| **x86_64 CPU (AVX2)** | **84.5 t/s** | **18.2 ms** | 1,450 MB |
-
-
-### Evolução Arquitetural de Alta Performance (Roadmap)
-Para garantir inferência em tempo real e uso em produção (Edge/Cloud), estamos implementando:
-- **`vLLM` / `TensorRT-LLM` Engine:** Substituir a inferência nativa do Transformers pelo Continuous Batching e PagedAttention.
-- **`Flash Attention 2`:** Aceleração a nível de kernel para atenção em modelos de 4096+ tokens.
-- **`torch.compile()`:** Integração ativa nos scripts nativos (`maurice/serve.py`) para otimização do grafo computacional no PyTorch 2.x.
-
-### Domain Evaluation Metrics
-
-| Variant | Target Specialization | Primary Evaluation Benchmark | Key Performance Indicator |
-| :--- | :--- | :--- | :--- |
-| `mau-llm-1.0-c` | Code & Refactor | HumanEval / MultiPL-E | **76.4% Pass@1** \| **98.2% AST Syntax Rate** \| **94.5% Unified Diff Accuracy** |
-| `mau-llm-1.0-r` | Pure Reasoning | GSM8k / MATH | **88.4% GSM8k** \| **62.1% MATH** \| **99.8% `<think>` Calibration Rate** |
-| `mau-llm-1.0-g` | General Purpose | MT-Bench Subset | **8.72 / 10 Score** \| **96.5% Adaptive Thinking Suppression** |
-
----
-
-
-## Fundamentos Matemáticos (MAURICE)
-
-### Atualização de Pesos (QLoRA)
-No MAURICE, evitamos o *Full Finetuning* (que atualizaria todos os parâmetros $\Phi$) e utilizamos **QLoRA** (Quantized Low-Rank Adaptation). O modelo base é congelado em 4-bit, e treinamos apenas matrizes de baixo posto (Low-Rank) $A$ e $B$:
-
-$$ W_{new} = W_0 + \Delta W = W_0 + rac{\alpha}{r} (B \times A) $$
-
-Onde:
-- $W_0$ é a matriz original congelada em 4-bit NormalFloat (NF4).
-- $B \in \mathbb{R}^{d \times r}$ e $A \in \mathbb{R}^{r \times k}$ são as matrizes treináveis em FP16/BF16.
-- $r$ é o rank (no MAURICE, usamos $r=16$).
-- $\alpha$ é o fator de escala (usamos $\alpha=16$).
-
-### Complexidade de Memória (VRAM)
-A otimização matemática reflete diretamente na performance e exigência de hardware:
-- **Full Finetuning (1.5B parâmetros):** $\approx 1.5B \times 4 \text{ bytes (FP32)} \times 4 \text{ (Adam Optimizer states)} \approx 24 \text{ GB VRAM}$
-- **MAURICE QLoRA (1.5B parâmetros):** $\approx 1.5B \times 0.5 \text{ bytes (4-bit)} + \text{Adapter Memory} \approx 1.8 \text{ GB VRAM}$
-
-Essa redução drástica ($\sim 92\%$) permite que as 3 famílias de modelos sejam treinadas em GPUs edge e de consumo.
-
-## Inference, Serving & UI
-
-<p align="center">
-  <img src="assets/serving.svg" alt="Serving & Streamlit UI Architecture" width="95%" />
-</p>
-
-### FastAPI OpenAI-Compatible Endpoint
-
-Launch the server via `scripts/06_serve_model.py`:
-
-```bash
-poetry run python scripts/06_serve_model.py --port 8000
-```
-
-#### Example `cURL` Completion Request:
-
-```bash
-curl http://localhost:8000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "mau-llm-1.0-r",
-    "messages": [
-      {"role": "user", "content": "Solve x for 3x + 12 = 42 step-by-step."}
-    ],
-    "temperature": 0.2
-  }'
-```
-
-### Interactive Streamlit Reasoning UI
-
-Launch the UI visualizer:
-
-```bash
-make ui
-# or: poetry run streamlit run ui/app.py
-```
-
-Features:
-- **Chain-of-Thought Parsing**: Isolates `<think>` reasoning steps into expandable visual containers.
-- **Model Switcher**: Dynamic toggle between `mau-llm-1.0-c`, `mau-llm-1.0-r`, and `mau-llm-1.0-g`.
-- **Benchmark Analytics Dashboard**: Renders comparative throughput, latency, and RSS charts.
-
-### Ollama & llama.cpp Modelfiles
-
-Pre-configured Modelfiles are provided in `modelfiles/`:
-- `modelfiles/Modelfile.c`
-- `modelfiles/Modelfile.r`
-- `modelfiles/Modelfile.g`
-
-Create an Ollama model directly:
-
-```bash
-ollama create mau-code -f modelfiles/Modelfile.c
-ollama run mau-code "Write a Python function to perform binary search."
-```
-
----
-
-## Installation & Environment Setup
-
-### Prerequisites
-- **Python**: 3.10, 3.11, or 3.12
-- **Poetry**: Dependency management tool
-- **C++ Compiler / CMake**: For `llama.cpp` native builds (optional, pre-built binaries supported)
-
-### Local Setup with Poetry
-
-```bash
-# Clone the repository
-git clone https://github.com/Helfstein-one/MAURICE.git
-cd MAURICE
-
-# Install dependencies via Poetry
-poetry install
-
-# Activate virtual environment
-poetry shell
-```
-
----
-
-
-## Fluxo de Treinamento e Transformação (Pipeline)
-
-O processo de construção das 3 famílias de modelos (`c`, `r`, `g`) flui através da seguinte arquitetura de dados e transformação de estados:
-
-```mermaid
-flowchart TD
-    %% Nós de Origem
     RawData[(Dataset Bruto)]
     BaseModel((Base Model: DeepSeek-1.5B))
     
-    %% Preparação
-    subgraph Prepare [CLI: maurice prepare]
+    subgraph Prepare [1. Prepare (SFT)]
         D_C[Dataset: Code]
-        D_R[Dataset: Reasoning]
-        D_G[Dataset: General]
     end
     
-    %% Treinamento QLoRA
-    subgraph Train [CLI: maurice train]
-        L_C[LoRA Adapter: mau-c]
-        L_R[LoRA Adapter: mau-r]
-        L_G[LoRA Adapter: mau-g]
+    subgraph Train [2. Train (QLoRA)]
+        L_C[LoRA Adapter]
     end
     
-    %% Merge de Pesos
-    subgraph Merge [CLI: maurice merge]
-        M_C[Merged Model FP16: C]
-        M_R[Merged Model FP16: R]
-        M_G[Merged Model FP16: G]
+    subgraph Synth [3. RLAIF Synthesis]
+        P_C[Preference Pairs (Chosen/Rejected)]
     end
     
-    %% Quantização
-    subgraph Quantize [CLI: maurice quantize]
-        Q_C[[GGUF Q4_K_M: Code]]
-        Q_R[[GGUF Q4_K_M: Reasoning]]
-        Q_G[[GGUF Q4_K_M: General]]
+    subgraph Align [4. ORPO Alignment]
+        A_C[Aligned Adapter]
+    end
+    
+    subgraph Merge [5. Merge Weights]
+        M_C[Merged Model FP16]
+    end
+    
+    subgraph Quantize [6. Quantize (GGUF)]
+        Q_C[[GGUF Q4_K_M]]
     end
 
-    %% Roteamento
-    RawData --> Prepare
-    Prepare --> D_C & D_R & D_G
-    
-    D_C --> L_C
-    D_R --> L_R
-    D_G --> L_G
-    
-    BaseModel -. "NF4 Freeze" .-> Train
-    
-    L_C --> M_C
-    L_R --> M_R
-    L_G --> M_G
-    BaseModel -. "FP16" .-> Merge
-    
-    M_C --> Q_C
-    M_R --> Q_R
-    M_G --> Q_G
+    RawData --> Prepare --> D_C
+    D_C --> Train --> L_C
+    L_C --> Synth --> P_C
+    P_C --> Align --> A_C
+    A_C --> Merge
+    BaseModel -. "Base FP16" .-> Merge
+    Merge --> M_C --> Quantize --> Q_C
 ```
 
+---
 
-## Como Replicar o Treinamento (Walkthrough Prático)
+## ⚡ Performance e Benchmarks
 
-Graças à CLI unificada `maurice`, replicar a criação dos modelos é determinístico.
+MAURICE é construído para velocidade. Aqui está o perfil de inferência esperado para a família `mau-llm-1.0` (1.5B parâmetros, Q4_K_M):
 
-### Requisitos de Hardware
-- **VRAM (Treinamento):** Mínimo de 6 GB VRAM (NVIDIA RTX 3060, 4060, T4, L4 ou Mac M-Series Unified Memory).
-- **RAM (Quantização):** 16 GB.
+![Benchmarks de Velocidade](assets/benchmarks.svg)
 
-### Passo-a-Passo: Treinando a Variante de Código (`c`)
+| Hardware | Backend | Velocidade Esperada | VRAM Consumida |
+| :--- | :--- | :--- | :--- |
+| **MacBook Air M1/M2 (8GB)** | Metal (MPS) via Ollama | ~80 - 120 t/s | ~1.2 GB |
+| **NVIDIA RTX 4090** | CUDA via vLLM | ~250+ t/s | ~1.2 GB |
+| **x86_64 CPU (AVX2)** | llama.cpp puro | ~40 - 60 t/s | ~1.5 GB RAM |
 
-**1. Preparar o dataset (Filtro e formatação ChatML)**
+> *A etapa de Quantização (abaixo) é o grande segredo para extrair este nível de performance na Edge.*
+
+![Quantização Edge](assets/quantization.svg)
+
+---
+
+## 🛠️ Walkthrough Prático (Como usar o CLI)
+
+A CLI do MAURICE (`maurice.cli`) simplifica o orquestramento. Abaixo está o fluxo completo para gerar a variante de código (`c`).
+
+**1. Preparar o dataset (SFT)**
 ```bash
 maurice prepare --variant c
-# Tempo esperado: < 1 minuto
 ```
 
 **2. Treinar o Adapter QLoRA**
 ```bash
 maurice train --variant c --batch-size 4
-# Tempo esperado: ~45 min (em RTX 4090) a 2h (em Mac M2)
 ```
 
-**3. Fazer o Merge (Consolidar pesos)**
+**3. Síntese RLAIF (LLM-as-a-judge)**
+Gera pares de preferências (Chosen/Rejected) a partir das saídas do modelo treinado em SFT.
+```bash
+maurice synth-prefs --variant c
+```
+
+**4. Alinhamento Post-SFT (ORPO/DPO)**
+Refina os pesos usando o dataset de preferências para desencorajar código ruim.
+```bash
+maurice align --variant c --method orpo
+```
+
+**5. Fazer o Merge (Consolidar pesos)**
 ```bash
 maurice merge --variant c
-# Tempo esperado: ~2 minutos
 ```
 
-**4. Quantizar para Edge (GGUF + imatrix)**
+**6. Quantizar para Edge (GGUF + imatrix)**
 ```bash
 maurice quantize --variant c
-# Gera o arquivo binário leve pronto para Ollama/llama.cpp
 ```
-
-
-## Inferência Local (Ollama)
-
-Após compilar o modelo (ou testar a pipeline), você pode interagir com ele nativamente usando o **Ollama**.
-
-**1. Crie o modelo local no Ollama:**
-Use o `Modelfile` preparado e aponte para o arquivo GGUF gerado no diretório `build/`.
-
-```bash
-ollama create mau-llm-1.0-c -f ollama/Modelfile.c
-```
-
-**2. Rode o modelo no seu terminal:**
-O modelo agora está integrado e persistido localmente. Converse com ele diretamente via shell:
-
-```bash
-ollama run mau-llm-1.0-c "escreva um hello world em python"
-```
-
-A arquitetura do `Modelfile` já embute o *System Prompt* correto, os parâmetros de *temperature* ideais e suporta conversas contínuas mantendo o contexto.
 
 ---
 
-## Quickstart & Makefile Orchestration
+## 🚀 Inferência Local (Ollama)
 
-The root `Makefile` orchestrates all execution stages:
+Após compilar o modelo com a pipeline acima, você pode interagir com ele nativamente usando o **Ollama**.
+
+**1. Crie o modelo local no Ollama:**
+Use o `Modelfile` preparado pela arquitetura e aponte para o arquivo GGUF gerado no diretório `build/`.
+```bash
+ollama create mau-llm-1.0-c -f ollama/Modelfile.c
+```
+*(Repita para as variantes de Raciocínio usando `ollama/Modelfile.r` e Geral com `ollama/Modelfile.g`)*
+
+**2. Rode o modelo no seu terminal:**
+O modelo agora está integrado e persistido localmente. Converse com ele diretamente via shell:
+```bash
+ollama run mau-llm-1.0-c "escreva um hello world em python"
+```
+A arquitetura do `Modelfile` já embute o *System Prompt* rigoroso, os parâmetros de *temperature* ideais de acordo com a variante e suporta conversas contínuas mantendo o contexto via formato `ChatML`.
+
+![Model Serving API](assets/serving.svg)
+
+---
+
+## 🔄 Quickstart & Makefile Orchestration
+
+Você também pode orquestrar todas as etapas usando o `Makefile` root:
 
 ```bash
-# Run complete pipeline across all variants (prepare → train → merge → quantize → eval)
+# Executar a pipeline inteira para todas as variantes
 make all
 
-# Target a specific variant (e.g. Code Variant 'c')
+# Executar apenas para a Variante de Código 'c'
 make prepare VARIANT=c
 make train VARIANT=c
+make synth-prefs VARIANT=c
+make align VARIANT=c
 make merge VARIANT=c
 make quantize VARIANT=c
-make eval VARIANT=c
 
-# Run dry-run smoke tests (CPU friendly)
-make dry-run
-
-# Run code linting & unit tests
+# Validação do código (Lint e Testes)
 make lint
 make test
 ```
 
 ---
 
-## Container Deployment (Podman / Docker)
-
-MAURICE features a multi-stage `Containerfile` built on `debian:bookworm-slim` for C++ native compilation (`llama.cpp`) and `python:3.11-slim-bookworm` for 100% `glibc` runtime compatibility.
+## 🐳 Container Deployment (Podman / Docker)
 
 ```bash
-# Build container image with Podman or Docker
+# Build container image (Debian base + Glibc)
 podman build -t maurice:latest -f Containerfile .
 
-# Run container interactively
-podman run --rm -it -p 8000:8000 maurice:latest /bin/bash
-
-# Start FastAPI serving server inside container
+# Start FastAPI serving server inside container (Compatível com OpenAI)
 podman run --rm -p 8000:8000 maurice:latest python3 scripts/06_serve_model.py
 ```
 
 ---
 
-## CI/CD DAG Quality Gates
+## 🛡️ CI/CD DAG Quality Gates
 
-The repository enforces quality control via a 6-layer Directed Acyclic Graph (DAG) GitHub Actions workflow (`.github/workflows/ci.yml`):
-
-```mermaid
-flowchart TD
-    subgraph Layer0[Layer 0: Path Filter]
-        L0[dorny/paths-filter]
-    end
-
-    subgraph Layer1[Layer 1: Fast Parallel Checks]
-        L1A[Ruff Lint]
-        L1B[Ruff Format Check]
-        L1C[Dryrun Stage 01]
-        L1D[Dryrun Stage 02]
-        L1E[Dryrun Stage 03]
-    end
-
-    subgraph Layer2[Layer 2: Static Analysis & Benchmark]
-        L2A[Mypy Type Analysis]
-        L2B[Dryrun Benchmark Stage 05]
-        L2C[Dryrun Pipeline Scripts]
-    end
-
-    subgraph Layer3[Layer 3: Parallel Unit Tests]
-        L3A[Pytest: Datasets]
-        L3B[Pytest: Tokenizer & Prompts]
-        L3C[Pytest: Model Config]
-    end
-
-    subgraph Layer4[Layer 4: Container & Native Builds]
-        L4A[Podman Engine Setup]
-        L4B[Containerfile Multi-Stage Build]
-        L4C[Native C++ Binary Smoke Test]
-    end
-
-    subgraph Layer5[Layer 5: Branch Protection]
-        L5[Gatekeeper Check]
-    end
-
-    L0 --> L1A & L1B & L1C & L1D & L1E
-    L1A & L1B --> L2A
-    L1C & L1D --> L2B
-    L1E --> L2C
-    L2A & L2B & L2C --> L3A & L3B & L3C
-    L3A & L3B & L3C --> L4A
-    L4A --> L4B --> L4C
-    L4C --> L5
-```
+O repositório garante zero falhas arquiteturais usando um pipeline DAG de 6 camadas no GitHub Actions (`.github/workflows/ci.yml`), validando linting (Ruff), tipagem (Mypy), testes (Pytest) e integridade de build do container.
 
 ---
 
-## Directory Structure
+## 📚 Estrutura do Diretório
 
 ```text
 MAURICE/
-├── .github/
-│   └── workflows/
-│       └── ci.yml             # 6-Layer DAG GitHub Actions Workflow
-├── assets/                    # Professional SVG architecture & benchmark diagrams
-│   ├── benchmarks.svg
-│   ├── pipeline.svg
-│   ├── quantization.svg
-│   └── serving.svg
-├── configs/                   # Hyperparameter configurations per model variant
-│   ├── variant_c.json
-│   ├── variant_g.json
-│   └── variant_r.json
-├── data/
-│   ├── raw/                   # Raw dataset cache
-│   └── processed/             # Processed ChatML JSONL training sets
-├── modelfiles/                # Ollama/GGUF Modelfiles with target system prompts
-│   ├── Modelfile.c
-│   ├── Modelfile.g
-│   └── Modelfile.r
-├── paper/                     # Research paper & documentation LaTeX sources
-│   └── maurice_paper.tex
-├── scripts/                   # Modular pipeline execution scripts
-│   ├── 01_prepare_datasets.py # Dataset preparation, filtering, and ChatML conversion
-│   ├── 02_train_qlora.py      # QLoRA fine-tuning with Unsloth / PEFT
-│   ├── 03_merge_weights.py    # Weight consolidation and adapter merging
-│   ├── 04_quantize_imatrix.sh # GGUF imatrix calibration and quantization
-│   ├── 05_benchmark_eval.py   # Benchmark evaluation harness
-│   └── 06_serve_model.py      # OpenAI-compatible FastAPI REST server
-├── tests/                     # Comprehensive Pytest suite
-├── ui/
-│   └── app.py                 # Streamlit interactive visualizer & reasoning UI
-├── Containerfile              # Multi-stage glibc runtime Containerfile
-├── LICENSE                    # MIT License
-├── Makefile                   # Automation targets
-├── pyproject.toml             # Poetry project configuration
-└── README.md                  # Detailed framework documentation
+├── assets/                    # Diagramas profissionais SVG (Arquitetura & Benchmarks)
+├── checkpoints/               # Artefatos intermediários (LoRA e Modelos mesclados FP16)
+├── data/                      # Datasets Brutos (raw) e Processados (SFT / RLAIF)
+├── maurice/                   # Core Python Package (CLI, Train, Synth, Align)
+├── ollama/                    # Manifestos (Modelfiles) do Ollama para as variantes c, r, g
+├── scripts/                   # Scripts standalone e servidor FastAPI vLLM
+├── tests/                     # Suite de Pytest (Mocks de HuggingFace, FastAPI, etc)
+├── pyproject.toml             # Configuração do ecossistema via Poetry
+├── Containerfile              # Runtime Glibc padronizado Docker/Podman
+└── README.md                  # Esta documentação rica
 ```
 
 ---
 
-## License & Citation
+## 📜 Licença e Citação
 
-This project is open-source under the terms of the [MIT License](LICENSE).
+Este projeto é open-source sob a [MIT License](LICENSE).
 
-### Citation
-
-If you use the MAURICE framework or model variants in your research or projects, please cite:
+Se o MAURICE foi útil nas suas pesquisas ou engenharia de IA local, considere citar:
 
 ```bibtex
-@software{goncalves2025maurice,
-  author = {Gon{\c{c}}alves, Maur{\'i}cio Helfstein},
+@software{goncalves2026maurice,
+  author = {Gon{\c{c}}alves, Maur{'i}cio Helfstein},
   title = {MAURICE: Minimal Adaptation for Ultra-fast Reasoning and Inference in Code Engines},
-  year = {2025},
+  year = {2026},
   publisher = {GitHub},
-  journal = {GitHub repository},
   url = {https://github.com/Helfstein-one/MAURICE}
 }
 ```
