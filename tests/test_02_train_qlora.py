@@ -110,7 +110,9 @@ def test_attn_implementation_selection(tmp_path):
     out_dir = str(tmp_path / "out_attn")
     mock_spec = type("ModuleSpec", (), {})()
 
-    mock_torch = type("TorchMock", (), {"cuda": type("CudaMock", (), {"is_available": lambda *args, **kwargs: False})()})()
+    mock_torch = type(
+        "TorchMock", (), {"cuda": type("CudaMock", (), {"is_available": lambda *args, **kwargs: False})()}
+    )()
     mock_transformers = type("TransformersMock", (), {})()
     mock_autotokenizer = type("AutoTokenizerMock", (), {"from_pretrained": MagicMock()})()
     mock_automodel = type("AutoModelForCausalLMMock", (), {"from_pretrained": MagicMock()})()

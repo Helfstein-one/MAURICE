@@ -9,6 +9,79 @@ import streamlit as st
 
 API_URL = "http://localhost:8000/v1/chat/completions"
 
+DEFAULT_BENCHMARK_RESULTS: list[dict[str, Any]] = [
+    {
+        "variant": "mau-llm-1.0-r",
+        "hardware_acceleration": "x86_64 CPU (AVX2)",
+        "metrics": {
+            "tokens_per_second": 142.5,
+            "time_to_first_token_ms": 18.2,
+            "peak_rss_mb": 512.0,
+            "evaluation_scores": {
+                "eval_benchmark": "Reasoning & Logic Suite",
+                "gsm8k_accuracy": 0.84,
+                "math_pass_rate": 0.79,
+            },
+        },
+    },
+    {
+        "variant": "mau-llm-1.0-c",
+        "hardware_acceleration": "x86_64 CPU (AVX2)",
+        "metrics": {
+            "tokens_per_second": 168.0,
+            "time_to_first_token_ms": 14.5,
+            "peak_rss_mb": 480.0,
+            "evaluation_scores": {
+                "eval_benchmark": "Code Generation Suite",
+                "humaneval_pass_at_1": 0.76,
+                "mbpp_pass_at_1": 0.72,
+            },
+        },
+    },
+    {
+        "variant": "mau-llm-1.0-g",
+        "hardware_acceleration": "x86_64 CPU (AVX2)",
+        "metrics": {
+            "tokens_per_second": 155.2,
+            "time_to_first_token_ms": 16.0,
+            "peak_rss_mb": 500.0,
+            "evaluation_scores": {
+                "eval_benchmark": "General Knowledge Suite",
+                "mmlu_accuracy": 0.68,
+                "arc_challenge": 0.71,
+            },
+        },
+    },
+]
+
+
+def render_assistant_content(content: str) -> None:
+    """Renders assistant message content, parsing <think>...</think> tags into st.expander."""
+    if not content:
+        return
+
+    if "<think>" in content:
+        parts = re.split(r"(<think>.*?</think>)", content, flags=re.DOTALL)
+        for part in parts:
+            if part.startswith("<think>") and part.endswith("</think>"):
+                think_content = part[7:-8].strip()
+                if think_content:
+                    with st.expander("Reasoning Process"):
+                        st.markdown(think_content)
+            elif "<think>" in part:
+                idx = part.find("<think>")
+                before = part[:idx].strip()
+                think_content = part[idx + 7 :].strip()
+                if before:
+                    st.markdown(before)
+                if think_content:
+                    with st.expander("Reasoning Process"):
+                        st.markdown(think_content)
+            elif part.strip():
+                st.markdown(part.strip())
+    else:
+        st.markdown(content)
+
 
 def parse_benchmark_kpis(results: list[dict[str, Any]]) -> dict[str, Any]:
     """Calculates key benchmark metrics summary for UI rendering."""
@@ -57,14 +130,14 @@ def render_app() -> None:
 
     st.title("MAURICE LLM Suite")
 
-    tab1, tab2 = st.tabs(["💬 Chat & Reasoning", "📊 Benchmark Analysis"])
+    tab1, tab2 = st.tabs(["💬 Chat & Reasoning", "📊 Benchmarks"])
 
     with tab1:
         st.markdown("Visual interface to showcase the reasoning process of the model.")
 
         variant = st.selectbox(
             "Select Model Variant",
-            ["maurice-final", "maurice-c", "maurice-r", "maurice-g"],
+            ["mau-llm-1.0-r", "mau-llm-1.0-c", "mau-llm-1.0-g", "maurice-final"],
         )
 
         if "messages" not in st.session_state:
@@ -73,16 +146,7 @@ def render_app() -> None:
         for msg in st.session_state.messages:
             with st.chat_message(msg["role"]):
                 if msg["role"] == "assistant":
-                    content = msg["content"]
-                    # Parse <think> blocks
-                    parts = re.split(r"(<think>.*?</think>)", content, flags=re.DOTALL)
-                    for part in parts:
-                        if part.startswith("<think>") and part.endswith("</think>"):
-                            think_content = part[7:-8].strip()
-                            with st.expander("Reasoning Process"):
-                                st.markdown(think_content)
-                        elif part.strip():
-                            st.markdown(part)
+                    render_assistant_content(msg["content"])
                 else:
                     st.markdown(msg["content"])
 
@@ -107,26 +171,17 @@ def render_app() -> None:
                 except requests.RequestException as e:
                     assistant_content = f"Error connecting to inference server: {e}"
 
-                # Render assistant content
-                parts = re.split(r"(<think>.*?</think>)", assistant_content, flags=re.DOTALL)
-                for part in parts:
-                    if part.startswith("<think>") and part.endswith("</think>"):
-                        think_content = part[7:-8].strip()
-                        with st.expander("Reasoning Process"):
-                            st.markdown(think_content)
-                    elif part.strip():
-                        st.markdown(part)
-
+                render_assistant_content(assistant_content)
                 st.session_state.messages.append({"role": "assistant", "content": assistant_content})
 
     with tab2:
         st.header("📊 Model Benchmark & Performance Analysis")
         st.markdown(
             "Analyze hardware throughput, Time to First Token (TTFT) latency, memory footprint, "
-            "and domain-specific evaluation scores across trained MAURICE variants (`c`, `r`, `g`)."
+            "and domain-specific evaluation scores across trained MAURICE variants (`mau-llm-1.0-r`, "
+            "`mau-llm-1.0-c`, `mau-llm-1.0-g`)."
         )
 
-        # Benchmark Data Source
         col_source1, col_source2 = st.columns([2, 1])
 
         uploaded_file = None
@@ -165,55 +220,56 @@ def render_app() -> None:
             except Exception as e:  # noqa: BLE001
                 st.error(f"Error reading {json_path}: {e}")
 
-        if benchmark_data:
-            if isinstance(benchmark_data, dict):
-                results_list = [benchmark_data]
-            elif isinstance(benchmark_data, list):
-                results_list = benchmark_data
-            else:
-                results_list = []
+        if not benchmark_data:
+            st.info("No external benchmark JSON found or uploaded. Displaying default mock benchmark metrics.")
+            benchmark_data = DEFAULT_BENCHMARK_RESULTS
 
-            if results_list:
-                kpis = parse_benchmark_kpis(results_list)
-                kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-                kpi1.metric("Evaluated Models", kpis["model_count"])
-                kpi2.metric("Max Throughput", f"{kpis['max_throughput']:.1f} t/s")
-                kpi3.metric("Min TTFT Latency", f"{kpis['min_ttft_ms']:.1f} ms")
-                kpi4.metric("Avg Peak Memory", f"{kpis['avg_peak_rss_mb']:.1f} MB")
-
-                st.subheader("🚀 Hardware Performance Comparison")
-                table_data = format_variant_table(results_list)
-                st.dataframe(table_data, use_container_width=True)
-
-                chart_col1, chart_col2 = st.columns(2)
-                with chart_col1:
-                    st.markdown("#### Token Throughput (tokens/sec)")
-                    tps_chart_data = {row["Variant"]: row["Throughput (t/s)"] for row in table_data}
-                    st.bar_chart(tps_chart_data)
-                with chart_col2:
-                    st.markdown("#### TTFT Latency (ms)")
-                    ttft_chart_data = {row["Variant"]: row["TTFT (ms)"] for row in table_data}
-                    st.bar_chart(ttft_chart_data)
-
-                st.subheader("🎯 Specialized Domain Evaluation Scores")
-                for item in results_list:
-                    v = item.get("variant", "unknown")
-                    eval_scores = item.get("metrics", {}).get("evaluation_scores", {})
-                    bench_name = eval_scores.get("eval_benchmark", "Domain Benchmark")
-                    with st.expander(f"Variant '{v}' — {bench_name}", expanded=True):
-                        cols = st.columns(max(len(eval_scores) - 1, 1))
-                        col_idx = 0
-                        for key, val in eval_scores.items():
-                            if key != "eval_benchmark":
-                                label = key.replace("_", " ").title()
-                                val_str = f"{val:.1%}" if isinstance(val, float) and val <= 1.0 else str(val)
-                                cols[col_idx % len(cols)].metric(label, val_str)
-                                col_idx += 1
-
-                with st.expander("📄 Raw Benchmark JSON Data"):
-                    st.json(benchmark_data)
+        if isinstance(benchmark_data, dict):
+            results_list = [benchmark_data]
+        elif isinstance(benchmark_data, list):
+            results_list = benchmark_data
         else:
-            st.info("No benchmark results loaded. Click 'Run / Refresh Benchmark Suite' above or provide a JSON file.")
+            results_list = []
+
+        if results_list:
+            kpis = parse_benchmark_kpis(results_list)
+            kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+            kpi1.metric("Evaluated Models", kpis["model_count"])
+            kpi2.metric("Max Throughput", f"{kpis['max_throughput']:.1f} t/s")
+            kpi3.metric("Min TTFT Latency", f"{kpis['min_ttft_ms']:.1f} ms")
+            kpi4.metric("Avg Peak Memory", f"{kpis['avg_peak_rss_mb']:.1f} MB")
+
+            st.subheader("🚀 Hardware Performance Comparison")
+            table_data = format_variant_table(results_list)
+            st.dataframe(table_data, use_container_width=True)
+
+            chart_col1, chart_col2 = st.columns(2)
+            with chart_col1:
+                st.markdown("#### Token Throughput (tokens/sec)")
+                tps_chart_data = {row["Variant"]: row["Throughput (t/s)"] for row in table_data}
+                st.bar_chart(tps_chart_data)
+            with chart_col2:
+                st.markdown("#### TTFT Latency (ms)")
+                ttft_chart_data = {row["Variant"]: row["TTFT (ms)"] for row in table_data}
+                st.bar_chart(ttft_chart_data)
+
+            st.subheader("🎯 Specialized Domain Evaluation Scores")
+            for item in results_list:
+                v = item.get("variant", "unknown")
+                eval_scores = item.get("metrics", {}).get("evaluation_scores", {})
+                bench_name = eval_scores.get("eval_benchmark", "Domain Benchmark")
+                with st.expander(f"Variant '{v}' — {bench_name}", expanded=True):
+                    cols = st.columns(max(len(eval_scores) - 1, 1))
+                    col_idx = 0
+                    for key, val in eval_scores.items():
+                        if key != "eval_benchmark":
+                            label = key.replace("_", " ").title()
+                            val_str = f"{val:.1%}" if isinstance(val, float) and val <= 1.0 else str(val)
+                            cols[col_idx % len(cols)].metric(label, val_str)
+                            col_idx += 1
+
+            with st.expander("📄 Raw Benchmark JSON Data"):
+                st.json(benchmark_data)
 
 
 if __name__ == "__main__":
