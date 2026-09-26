@@ -92,6 +92,16 @@ class TestMauricePipeline(unittest.TestCase):
         self.assertEqual(res.returncode, 0, f"Error: {res.stderr}")
         self.assertTrue(os.path.exists("build/benchmark_results.json"))
 
+    def test_validate_reasoning_dry_run(self):
+        res = subprocess.run(
+            ["python3", "scripts/validate_reasoning.py", "--dry-run"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(res.returncode, 0, f"Error: {res.stderr}")
+        self.assertTrue(os.path.exists("build/reasoning_validation_results.json"))
+
 
 if __name__ == "__main__":
     unittest.main()

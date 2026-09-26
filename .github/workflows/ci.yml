@@ -41,6 +41,8 @@ jobs:
               - 'tests/**/*.py'
             container:
               - 'Containerfile'
+            modelfiles:
+              - 'modelfiles/**'
 
   # ==========================================================
   # CAMADA 1: Fast-Check Paralelo (< 30s)
@@ -198,10 +200,12 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Syntax Check 06_serve_model & 07_publish_hub
+      - name: Syntax Check 06_serve_model & 07_publish_hub & validate_reasoning
         run: |
           python -m py_compile scripts/06_serve_model.py
           python -m py_compile scripts/07_publish_hub.py
+          python -m py_compile scripts/validate_reasoning.py
+          python scripts/validate_reasoning.py --dry-run
 
   # ==========================================================
   # CAMADA 3: Processos de Testes Unitários Separados
@@ -250,7 +254,7 @@ jobs:
 
       - name: Run Pytest Suite
         run: |
-          pytest tests/test_02_train_qlora.py tests/test_05_benchmark_eval.py -v -m "not slow"
+          pytest tests/test_02_train_qlora.py tests/test_05_benchmark_eval.py tests/test_validate_reasoning.py -v -m "not slow"
 
   unit_tests_model_config:
     name: 03C - Unit Tests (Model Config Unit)

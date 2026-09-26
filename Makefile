@@ -1,4 +1,4 @@
-.PHONY: all prepare train merge quantize eval serve ui clean help test dry-run lint quality-gates mcp-server
+.PHONY: all prepare train merge quantize eval serve ui clean help test dry-run lint quality-gates mcp-server validate-reasoning
 
 MAURICE ?= maurice
 PYTHON ?= python3
@@ -40,6 +40,9 @@ quantize:
 eval:
 	$(MAURICE) eval --variant $(VARIANT)
 
+validate-reasoning:
+	$(PYTHON) scripts/validate_reasoning.py --dry-run
+
 serve:
 	$(MAURICE) serve --variant $(VARIANT) --port $(PORT)
 
@@ -48,6 +51,7 @@ dry-run:
 	$(MAURICE) train --variant c --dry-run
 	$(MAURICE) merge --variant c --dry-run
 	$(MAURICE) eval --variant all --dry-run
+	$(PYTHON) scripts/validate_reasoning.py --dry-run
 	$(PYTHON) -m py_compile scripts/06_serve_model.py
 	$(PYTHON) -m py_compile scripts/08_mcp_quality_gates.py
 
@@ -82,6 +86,7 @@ help:
 	@echo '  merge      Merge adapter weights into base model'
 	@echo '  quantize   Convert to GGUF and quantize with imatrix'
 	@echo '  eval       Run benchmark evaluation'
+	@echo '  validate-reasoning Validate mau-llm-1.0-r mathematical & CoT reasoning'
 	@echo '  serve      Launch FastAPI inference server'
 	@echo '  dry-run    Smoke test entire pipeline without GPU'
 	@echo '  test          Run pytest suite'
