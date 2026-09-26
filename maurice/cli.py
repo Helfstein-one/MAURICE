@@ -100,7 +100,8 @@ def main(args_list: list[str] | None = None):
     serve_parser.add_argument("--variant", choices=["c", "r", "g"], default="c")
     serve_parser.add_argument("--host", type=str, default="0.0.0.0")
     serve_parser.add_argument("--port", type=int, default=8000)
-    serve_parser.add_argument("--backend", choices=["hf", "mock"], default="hf")
+    serve_parser.add_argument("--engine", choices=["hf", "vllm", "mock"], default="hf")
+    serve_parser.add_argument("--backend", choices=["hf", "vllm", "mock"], default=None)
 
     # ui
     subparsers.add_parser("ui", help="Launch Streamlit UI")
@@ -177,9 +178,11 @@ def main(args_list: list[str] | None = None):
             parsed_args.host,
             "--port",
             str(parsed_args.port),
-            "--backend",
-            parsed_args.backend,
+            "--engine",
+            parsed_args.engine,
         ]
+        if parsed_args.backend is not None:
+            s_args.extend(["--backend", parsed_args.backend])
         serve_main(s_args)
 
     elif sub == "ui":
