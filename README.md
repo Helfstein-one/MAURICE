@@ -407,6 +407,29 @@ maurice quantize --variant c
 # Gera o arquivo binário leve pronto para Ollama/llama.cpp
 ```
 
+
+## Inferência Local (Ollama)
+
+Após compilar o modelo (ou testar a pipeline), você pode interagir com ele nativamente usando o **Ollama**.
+
+**1. Crie o modelo local no Ollama:**
+Use o `Modelfile` preparado e aponte para o arquivo GGUF gerado no diretório `build/`.
+
+```bash
+ollama create MAURICE-c -f ollama/Modelfile.c
+```
+
+**2. Rode o modelo no seu terminal:**
+O modelo agora está integrado e persistido localmente. Converse com ele diretamente via shell:
+
+```bash
+ollama run MAURICE-c "escreva um hello world em python"
+```
+
+A arquitetura do `Modelfile` já embute o *System Prompt* correto, os parâmetros de *temperature* ideais e suporta conversas contínuas mantendo o contexto.
+
+---
+
 ## Quickstart & Makefile Orchestration
 
 The root `Makefile` orchestrates all execution stages:
