@@ -32,43 +32,7 @@ A nossa pipeline é segmentada em 6 estágios modulares. Da extração do dado b
 
 ![Pipeline de Transformação](assets/pipeline.svg)
 
-```mermaid
-flowchart TD
-    RawData[(Dataset Bruto)]
-    BaseModel((Base Model: DeepSeek-1.5B))
-    
-    subgraph Prepare [1. Prepare SFT]
-        D_C[Dataset: Code]
-    end
-    
-    subgraph Train [2. Train QLoRA]
-        L_C[LoRA Adapter]
-    end
-    
-    subgraph Synth [3. RLAIF Synthesis]
-        P_C[Preference Pairs (Chosen/Rejected)]
-    end
-    
-    subgraph Align [4. ORPO Alignment]
-        A_C[Aligned Adapter]
-    end
-    
-    subgraph Merge [5. Merge Weights]
-        M_C[Merged Model FP16]
-    end
-    
-    subgraph Quantize [6. Quantize GGUF]
-        Q_C[[GGUF Q4_K_M]]
-    end
 
-    RawData --> D_C
-    D_C --> L_C
-    L_C --> P_C
-    P_C --> A_C
-    A_C --> M_C
-    BaseModel -. "Base FP16" .-> M_C
-    M_C --> Q_C
-```
 
 ---
 
