@@ -40,6 +40,8 @@ A nossa pipeline é segmentada em 6 estágios modulares. Da extração do dado b
 
 MAURICE é construído para velocidade. Aqui está o perfil de inferência esperado para a família `mau-llm-1.0` (1.5B parâmetros, Q4_K_M):
 
+![Dashboard de Benchmarks no Streamlit](images/streamlit_benchmark.jpg)
+
 ![Benchmarks de Velocidade](assets/benchmarks.svg)
 
 | Hardware | Backend | Velocidade Esperada | VRAM Consumida |
@@ -118,6 +120,8 @@ A arquitetura do `Modelfile` já embute o *System Prompt* rigoroso, os parâmetr
 ## 🖥️ Streamlit Interactive UI
 
 O MAURICE inclui uma interface gráfica (Web UI) construída em **Streamlit** para visualização e interação direta com os modelos.
+
+![Streamlit Chat Interface](images/streamlit_chat.jpg)
 
 ```bash
 # Iniciar a interface
