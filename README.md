@@ -61,13 +61,13 @@ flowchart TD
         Q_C[[GGUF Q4_K_M]]
     end
 
-    RawData --> Prepare --> D_C
-    D_C --> Train --> L_C
-    L_C --> Synth --> P_C
-    P_C --> Align --> A_C
-    A_C --> Merge
-    BaseModel -. "Base FP16" .-> Merge
-    Merge --> M_C --> Quantize --> Q_C
+    RawData --> D_C
+    D_C --> L_C
+    L_C --> P_C
+    P_C --> A_C
+    A_C --> M_C
+    BaseModel -. "Base FP16" .-> M_C
+    M_C --> Q_C
 ```
 
 ---
