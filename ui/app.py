@@ -7,7 +7,6 @@ from typing import Any
 import requests
 import streamlit as st
 
-import os
 API_URL = os.getenv("API_URL", "http://localhost:8000/v1/chat/completions")
 
 DEFAULT_BENCHMARK_RESULTS: list[dict[str, Any]] = [
